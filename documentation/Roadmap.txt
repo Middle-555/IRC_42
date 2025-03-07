@@ -1,0 +1,236 @@
+📌 Étapes du projet :
+1. Analyse du sujet et des contraintes
+
+    Lire en détail le sujet pour comprendre les attentes.
+    Lister les interdictions (fork(), utilisation de bibliothèques externes, C++ moderne, etc.).
+    Identifier les fonctionnalités obligatoires et les bonus.
+
+2. Définition de l’architecture du projet
+
+    Création de la structure des fichiers (arborescence).
+    Découpage du projet en modules (gestion des connexions, parsing, commandes IRC, etc.).
+    Définition des classes principales et des interactions entre elles.
+
+3. Gestion des connexions réseau
+
+    Utilisation des sockets et des appels systèmes autorisés (socket(), bind(), listen(), accept(), send(), recv(), etc.).
+    Implémentation de poll() (ou équivalent) pour gérer plusieurs clients sans bloquer.
+    Gestion des erreurs et des connexions simultanées.
+
+4. Implémentation du protocole IRC
+
+    Authentification (PASS, NICK, USER).
+    Gestion des channels (JOIN, PART, TOPIC, MODE).
+    Messagerie (PRIVMSG, NOTICE).
+    Commandes opérateurs (KICK, INVITE, MODE).
+
+5. Gestion des messages et des clients
+
+    Stockage des clients et des channels.
+    Distribution des messages aux bons destinataires.
+    Vérification de la conformité aux standards IRC.
+
+6. Sécurisation et gestion des erreurs
+
+    Détection des connexions invalides et des messages malformés.
+    Gestion des déconnexions propres.
+    Sécurisation des accès (mot de passe serveur).
+
+7. Tests et validation
+
+    Test du serveur avec un client IRC officiel (par ex. WeeChat, HexChat).
+    Vérification du bon fonctionnement des commandes.
+    Simulation de cas limites (ex. connexions multiples, envoi de messages rapides).
+
+8. Optimisation et nettoyage du code
+
+    Respect des normes C++98.
+    Ajout de commentaires et organisation du code.
+    Nettoyage des ressources pour éviter les fuites mémoire.
+
+9. Rédaction du Makefile et finalisation
+
+    Création du Makefile avec les règles : all, clean, fclean, re.
+    Vérification que tout compile sans erreur (-Wall -Wextra -Werror).
+    Derniers tests avant rendu.
+
+
+
+<------------------------------------------------------------------------------------------------------------->
+
+Details des fichiers :
+
+1️⃣ Channel.cpp (Gestion des salons IRC)
+
+📌 Ce fichier contiendra toute la logique liée aux salons (channels) du serveur IRC.
+🔹 Ce qu'il va gérer :
+
+✅ Création et suppression des salons
+✅ Gestion des utilisateurs dans un salon
+✅ Gestion des modes des salons (i, t, k, o, l)
+✅ Gestion des messages envoyés aux membres du salon
+🔹 Fonctions principales :
+
+    Channel(std::string name) → Constructeur qui crée un channel.
+    void addClient(Client *client) → Ajoute un client au channel.
+    void removeClient(Client *client) → Supprime un client du channel.
+    void broadcastMessage(Client *sender, std::string message) → Envoie un message à tous les membres.
+    void setTopic(std::string topic) → Définit le sujet du channel.
+    void setMode(char mode, bool enable) → Active/désactive un mode du channel.
+
+2️⃣ Client.cpp (Gestion des utilisateurs)
+
+📌 Ce fichier gère tout ce qui concerne les clients (utilisateurs connectés).
+🔹 Ce qu'il va gérer :
+
+✅ Stockage des informations des clients
+✅ Authentification et vérification de l'état du client
+✅ Gestion des pseudos et des informations utilisateur
+✅ Gestion des permissions
+🔹 Fonctions principales :
+
+    Client(int socketFd) → Constructeur du client avec son socket.
+    void setNickname(std::string nickname) → Définit le pseudo du client.
+    void setUsername(std::string username) → Définit le nom d'utilisateur du client.
+    void setRealname(std::string realname) → Définit le real name du client.
+    void authenticate() → Marque le client comme authentifié.
+    bool isAuthenticated() const → Vérifie si le client est authentifié.
+
+3️⃣ CommandHandler.cpp (Traitement des commandes IRC)
+
+📌 Ce fichier est responsable de l’interprétation et du traitement des commandes IRC envoyées par les clients.
+🔹 Ce qu'il va gérer :
+
+✅ Parser les commandes envoyées par les clients
+✅ Appeler la bonne fonction en fonction de la commande reçue
+✅ Gérer les erreurs de syntaxe et de permissions
+🔹 Fonctions principales :
+
+    void handleCommand(Client *client, std::string command) → Décode et traite la commande IRC.
+    void handlePass(Client *client, std::string password) → Vérifie le mot de passe.
+    void handleNick(Client *client, std::string nickname) → Change le pseudo.
+    void handleUser(Client *client, std::string username, std::string realname) → Définit l'utilisateur.
+    void handleJoin(Client *client, std::string channelName) → Permet au client de rejoindre un salon.
+    void handlePart(Client *client, std::string channelName) → Permet au client de quitter un salon.
+    void handlePrivMsg(Client *client, std::string target, std::string message) → Envoie un message privé.
+
+4️⃣ Server.cpp (Gestion du serveur et des connexions)
+
+📌 Ce fichier gère tout ce qui concerne les sockets et les connexions des clients.
+🔹 Ce qu'il va gérer :
+
+✅ Création et écoute du socket serveur
+✅ Gestion des connexions clients avec poll()
+✅ Réception et envoi des messages des clients
+✅ Suppression propre des clients déconnectés
+🔹 Fonctions principales :
+
+    Server(int port, std::string password) → Constructeur qui initialise le serveur.
+    void run() → Boucle principale qui écoute les clients et traite leurs commandes.
+    void handleNewConnection() → Accepte une nouvelle connexion.
+    void handleClientMessage(int clientSocket) → Reçoit et traite un message d’un client.
+    void removeClient(int clientSocket) → Supprime un client déconnecté.
+    void sendMessage(int clientSocket, std::string message) → Envoie un message à un client.
+
+5️⃣ Utils.cpp (Fonctions utilitaires)
+
+📌 Ce fichier contiendra des fonctions générales réutilisables dans tout le projet.
+🔹 Ce qu'il va gérer :
+
+✅ Parsing et gestion des chaînes de caractères
+✅ Vérifications et validations des commandes IRC
+✅ Gestion des erreurs
+🔹 Fonctions principales :
+
+    std::vector<std::string> splitString(std::string input, char delimiter) → Découpe une chaîne en fonction d'un séparateur.
+    bool isValidNickname(std::string nickname) → Vérifie si un pseudo est valide.
+    std::string toUpperCase(std::string input) → Convertit une chaîne en majuscules.
+    bool isChannelNameValid(std::string name) → Vérifie si un nom de channel respecte les règles IRC.
+
+
+📌 Résumé global
+
+Channel.cpp             Gestion des salons IRC (JOIN, PART, TOPIC)
+Client.cpp	            Gestion des clients (authentification, pseudo)
+CommandHandler.cpp	    Interprétation des commandes IRC
+Server.cpp	            Gestion du serveur et des connexions réseau
+Utils.cpp	            Fonctions utilitaires (parsing, validation)
+
+
+<------------------------------------------------------------------------------------------------------------->
+
+
+📌 Récapitulatif et Plan d’Action (07/03/2025)
+
+Nous avons bien avancé sur la gestion des connexions et de l'authentification. Il reste encore plusieurs étapes pour finaliser le projet IRC. Voici un plan détaillé des prochaines tâches à accomplir :
+✅ 1. Correction du Segfault après une erreur de mot de passe (🔴 PRIORITÉ)
+
+📌 Problème actuel : Lorsqu’un client saisit un mauvais mot de passe, il est déconnecté, mais un segmentation fault survient ensuite.
+
+📌 Action à faire (Prochain objectif) :
+
+    [🔴 PRIORITAIRE] Trouver la cause du segfault (probablement un accès mémoire à un client supprimé).
+    Vérifier avec gdb où ça plante exactement :
+
+    gdb ./irc
+    run 6667 mypassword
+
+    Puis se connecter avec nc et tester une mauvaise saisie de mot de passe.
+
+📅 Deadline : Demain (08/03/2025)
+➡ But : Faire fonctionner la reconnexion après une erreur de mot de passe sans crash.
+✅ 2. Implémentation des commandes IRC de base
+
+Après avoir stabilisé la connexion et l’authentification, on doit ajouter les commandes IRC essentielles :
+🔹 Commandes à implémenter :
+
+    PING/PONG (🔴 Important pour éviter la déconnexion du client)
+        📌 Vérifier si le serveur répond correctement au PING.
+        📌 Envoyer un PONG en réponse.
+
+    PRIVMSG (📩 Messages privés entre clients)
+        📌 Un client doit pouvoir envoyer un message privé à un autre.
+        📌 Vérifier que l’utilisateur destinataire existe avant d’envoyer.
+
+    JOIN / PART (📢 Gestion des canaux)
+        📌 Permettre aux clients de rejoindre et quitter un canal.
+        📌 Créer un canal s’il n’existe pas encore.
+
+    LIST (📋 Afficher les canaux disponibles)
+        📌 Afficher la liste des salons existants.
+
+    NAMES (👥 Voir les membres d’un canal)
+        📌 Afficher les utilisateurs connectés sur un canal.
+
+📅 Deadline : 08-09/03/2025
+➡ But : Avoir une première version fonctionnelle des commandes de base.
+✅ 3. Gestion complète des canaux
+
+Une fois que les commandes de base fonctionnent, on doit gérer correctement les canaux.
+🔹 Fonctionnalités à ajouter :
+
+    Création et suppression de canaux
+        📌 Si un utilisateur JOIN un canal qui n’existe pas, il est créé.
+        📌 Si le dernier utilisateur PART, le canal est supprimé.
+
+    Gestion des permissions
+        📌 L’utilisateur qui crée un canal devient opérateur (@).
+        📌 Seuls les opérateurs peuvent kicker (KICK) et ban (BAN).
+
+    Modes de canal
+        📌 Implémenter les modes de canal (+i, +t, +m, etc.).
+        📌 Exemple : +i (invite only), +m (modéré).
+
+📅 Deadline : 10-11/03/2025
+➡ But : Avoir une gestion basique des canaux fonctionnelle.
+✅ 4. Tests Automatisés et Débogage
+
+    Ajout de scripts de test automatique (tests/)
+        📌 Un script doit tester la connexion, l’authentification, l’envoi de messages, la création de canaux, etc.
+        📌 Tester chaque commande IRC implémentée.
+
+    Utilisation de valgrind pour détecter les erreurs mémoire
+
+valgrind --leak-check=full --show-leak-kinds=all ./irc 6667 mypassword
+
+    📌 Vérifier les fuites mémoire et les accès à des zones non allouées.
