@@ -177,7 +177,7 @@ Nous avons bien avancé sur la gestion des connexions et de l'authentification. 
 
     Puis se connecter avec nc et tester une mauvaise saisie de mot de passe.
 
-📅 Deadline : Demain (08/03/2025)
+
 ➡ But : Faire fonctionner la reconnexion après une erreur de mot de passe sans crash.
 ✅ 2. Implémentation des commandes IRC de base
 
@@ -202,7 +202,7 @@ Après avoir stabilisé la connexion et l’authentification, on doit ajouter le
     NAMES (👥 Voir les membres d’un canal)
         📌 Afficher les utilisateurs connectés sur un canal.
 
-📅 Deadline : 08-09/03/2025
+
 ➡ But : Avoir une première version fonctionnelle des commandes de base.
 ✅ 3. Gestion complète des canaux
 
@@ -221,7 +221,7 @@ Une fois que les commandes de base fonctionnent, on doit gérer correctement les
         📌 Implémenter les modes de canal (+i, +t, +m, etc.).
         📌 Exemple : +i (invite only), +m (modéré).
 
-📅 Deadline : 10-11/03/2025
+
 ➡ But : Avoir une gestion basique des canaux fonctionnelle.
 ✅ 4. Tests Automatisés et Débogage
 
