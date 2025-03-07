@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/07 01:20:18 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/07 14:42:10 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -175,7 +175,7 @@ void Server::handleClientMessage(int clientSocket) {
     // Nettoyer le message des éventuels caractères parasites (\r\n)
     message.erase(message.find_last_not_of("\r\n") + 1);
 
-    // Vérifie si le client existe encore avant d'agir
+    // Vérifie si le client existe toujours
     if (clients.find(clientSocket) == clients.end()) {
         return;
     }
@@ -187,20 +187,35 @@ void Server::handleClientMessage(int clientSocket) {
         }
         handlePass(clientSocket, message);
 
-        // Vérifie que le client n'a pas été supprimé avant d'afficher la suite
+        // Vérifie que le client n'a pas été supprimé après la gestion du PASS
         if (clients.find(clientSocket) == clients.end()) {
             return;
         }
+        return;
     }
 
     // Étape 2 : Vérification du pseudo (NICK)
     if (clients[clientSocket]->getNickname().empty()) {
+        // 🚀 **Si l'utilisateur tape juste un pseudo, on ajoute "NICK " automatiquement**
         if (message.substr(0, 5) != "NICK ") {
             message = "NICK " + message;
         }
-        handleNick(clientSocket, message.substr(5));
 
-        send(clientSocket, "✅ Pseudo enregistré\r\nVotre nom : \r\n", 38, 0);
+        // ✅ On extrait correctement le pseudo après "NICK "
+        std::string nickname = message.substr(5);
+
+        // Vérifie que le pseudo n'est pas vide après extraction
+        if (nickname.empty()) {
+            send(clientSocket, "❌ Veuillez entrer un pseudo valide : \r\n", 40, 0);
+            return;
+        }
+
+        handleNick(clientSocket, nickname);
+        std::string userPrompt = "✅ Pseudo enregistré\r\nVotre nom : ";
+    send(clientSocket, userPrompt.c_str(), userPrompt.size(), 0);
+    usleep(10000);  // Petit délai pour s'assurer que tout est bien affiché
+
+
         return;
     }
 
@@ -209,12 +224,30 @@ void Server::handleClientMessage(int clientSocket) {
         if (message.substr(0, 5) != "USER ") {
             message = "USER " + message + " 0 * :";
         }
-        handleUser(clientSocket, message.substr(5), message.substr(5));
 
+        std::istringstream iss(message);
+        std::string command, username, mode, unused, realname;
+        iss >> command >> username >> mode >> unused;
+        std::getline(iss, realname);
+
+        // Supprime le ":" au début du realname si présent
+        if (!realname.empty() && realname[0] == ':') {
+            realname.erase(0, 1);
+        }
+
+        // Vérifie que le username n'est pas vide
+        if (username.empty()) {
+            send(clientSocket, "❌ Veuillez entrer un nom valide : \r\n", 40, 0);
+            return;
+        }
+
+        handleUser(clientSocket, username, realname);
         send(clientSocket, "✅ Inscription terminée ! 🎉\r\n", 34, 0);
         return;
     }
 }
+
+
 
 
 /**
@@ -294,7 +327,7 @@ void Server::handlePass(int clientSocket, const std::string& message) {
     }
 
     clients[clientSocket]->authenticate();
-    send(clientSocket, "✅ OK :Password accepted\r\nVotre pseudo : \r\n", 42, 0);
+    send(clientSocket, "✅ OK :Password accepted\r\n\r\nVotre pseudo : \r\n", 44, 0);
 }
 
 

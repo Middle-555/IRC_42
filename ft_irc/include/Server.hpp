@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:07:11 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/06 23:41:43 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/07 14:36:17 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,6 +26,7 @@
 #include <arpa/inet.h>
 #include <poll.h>
 #include <sstream>
+#include <unistd.h>
 #include "Client.hpp"
 
 #define MAX_CLIENTS 100  // Limite de clients simultanés
