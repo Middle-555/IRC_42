@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 23:47:29 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/06 23:47:32 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/10 16:49:42 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -51,4 +51,17 @@ void Client::setRealname(const std::string& name) {
 void Client::authenticate() {
     authenticated = true;
     std::cout << "✅ Client (fd: " << socketFd << ") authentifié !" << std::endl;
+    std::cout << std::endl;
+}
+
+void Client::setCurrentChannel(const std::string& channel) {
+    currentChannel = channel;
+}
+
+std::string Client::getCurrentChannel() const {
+    return currentChannel;
+}
+
+bool Client::isFullyRegistered() const {
+    return !nickname.empty() && !username.empty() && isAuthenticated();
 }

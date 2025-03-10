@@ -8,7 +8,9 @@ CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 # Fichiers sources
 SRC =	src/main.cpp\
 		src/Server.cpp\
-		src/Client.cpp
+		src/Client.cpp\
+		src/CommandHandler.cpp\
+		src/Channel.cpp
 
 # Dossier pour les fichiers objets
 OBJ_DIR = obj

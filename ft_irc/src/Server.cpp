@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/07 14:42:10 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/10 17:33:54 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,9 +24,10 @@
  *
  * @throws EXIT_FAILURE en cas d'erreur lors de la création du socket, du bind ou du listen.
  */
-Server::Server(int port, std::string password) : port(port), password(password) {
+Server::Server(int port, std::string password)
+    : port(port), password(password), commandHandler(*this) {  // ✅ Initialisation du commandHandler
     struct sockaddr_in serverAddr;
-
+    
     // Création du socket serveur
     serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket < 0) {
@@ -91,10 +92,18 @@ Server::~Server() {
  */
 void Server::run() {
     while (true) {
+        for (size_t i = 0; i < pollFds.size(); ++i) {
+            if (pollFds[i].fd < 0) {
+                std::cerr << "❌ Erreur: pollFds[" << i << "].fd est invalide !\n";
+                pollFds.erase(pollFds.begin() + i); // Supprime l'entrée invalide
+                i--; // Ajuste l'index après suppression
+            }
+            pollFds[i].revents = 0;  // ✅ Évite un comportement indéfini
+        }
+        
         // Attente d'événements sur les sockets
         int ret = poll(pollFds.data(), pollFds.size(), -1);
         if (ret < 0) {
-            perror("Erreur poll()");
             exit(EXIT_FAILURE);
         }
 
@@ -127,25 +136,46 @@ void Server::handleNewConnection() {
     int clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &clientAddrLen);
 
     if (clientSocket < 0) {
-        perror("Erreur accept()");
+        perror("❌ Erreur accept()");
         return;
     }
 
-    std::cout << "🟢 Nouveau client connecté : " << inet_ntoa(clientAddr.sin_addr) << std::endl;
+    std::cout << "🟢 Nouveau client connecté : " << inet_ntoa(clientAddr.sin_addr) << " (fd: " << clientSocket << ")" << std::endl;
 
+    // ✅ Vérification du socket avant de l'ajouter à pollFds
+    if (clientSocket < 0) {
+        std::cerr << "❌ Erreur: Socket client invalide !\n";
+        return;
+    }
+
+    // ✅ Initialisation complète du pollfd
     struct pollfd clientPollFd;
     clientPollFd.fd = clientSocket;
     clientPollFd.events = POLLIN;
+    clientPollFd.revents = 0;
+
     pollFds.push_back(clientPollFd);
-
-    // Création et stockage du client
+    
+    // ✅ Vérifier si l'allocation mémoire est réussie
     clients[clientSocket] = new Client(clientSocket);
-
-    // Envoi d'un message d'accueil au client
+    if (!clients[clientSocket]) {
+        std::cerr << "❌ Erreur : Impossible d'allouer un Client pour fd " << clientSocket << std::endl;
+        close(clientSocket);
+        return;
+    }
+    // ✅ Envoi d'un message d'accueil au client
     std::string welcomeMessage = "Bienvenue sur le serveur IRC !\n";
     welcomeMessage += "Veuillez entrer les informations demandées :\n";
     welcomeMessage += "Mot de passe du serveur : ";
-    send(clientSocket, welcomeMessage.c_str(), welcomeMessage.length(), 0);
+
+    int bytesSent = send(clientSocket, welcomeMessage.c_str(), welcomeMessage.length(), 0);
+    if (bytesSent < 0) {
+        perror("❌ Erreur send()");
+        close(clientSocket);
+        delete clients[clientSocket];
+        clients.erase(clientSocket);
+        return;
+    }
 }
 
 
@@ -170,85 +200,26 @@ void Server::handleClientMessage(int clientSocket) {
     }
 
     std::string message(buffer);
-    std::cout << "📩 Message reçu : " << message << std::endl;
+    message.erase(message.find_last_not_of("\r\n") + 1); // Nettoyage des sauts de ligne
 
-    // Nettoyer le message des éventuels caractères parasites (\r\n)
-    message.erase(message.find_last_not_of("\r\n") + 1);
+    std::cout << "📩 Message reçu de " << clientSocket << " : " << message << std::endl;
 
-    // Vérifie si le client existe toujours
+    // Vérifier si le client existe
     if (clients.find(clientSocket) == clients.end()) {
         return;
     }
 
-    // Étape 1 : Vérification du mot de passe
-    if (!clients[clientSocket]->isAuthenticated()) {
-        if (message.substr(0, 5) != "PASS ") {
-            message = "PASS " + message;
-        }
-        handlePass(clientSocket, message);
-
-        // Vérifie que le client n'a pas été supprimé après la gestion du PASS
-        if (clients.find(clientSocket) == clients.end()) {
-            return;
-        }
-        return;
+    // Vérifier si c'est une commande IRC
+    if (message[0] == '/') {
+        message = message.substr(1); // Supprime le "/"
     }
 
-    // Étape 2 : Vérification du pseudo (NICK)
-    if (clients[clientSocket]->getNickname().empty()) {
-        // 🚀 **Si l'utilisateur tape juste un pseudo, on ajoute "NICK " automatiquement**
-        if (message.substr(0, 5) != "NICK ") {
-            message = "NICK " + message;
-        }
+    // Debug : Afficher la commande analysée
+    std::cout << "🔍 Commande détectée : [" << message << "]\n";
 
-        // ✅ On extrait correctement le pseudo après "NICK "
-        std::string nickname = message.substr(5);
-
-        // Vérifie que le pseudo n'est pas vide après extraction
-        if (nickname.empty()) {
-            send(clientSocket, "❌ Veuillez entrer un pseudo valide : \r\n", 40, 0);
-            return;
-        }
-
-        handleNick(clientSocket, nickname);
-        std::string userPrompt = "✅ Pseudo enregistré\r\nVotre nom : ";
-    send(clientSocket, userPrompt.c_str(), userPrompt.size(), 0);
-    usleep(10000);  // Petit délai pour s'assurer que tout est bien affiché
-
-
-        return;
-    }
-
-    // Étape 3 : Vérification du nom d'utilisateur (USER)
-    if (clients[clientSocket]->getUsername().empty()) {
-        if (message.substr(0, 5) != "USER ") {
-            message = "USER " + message + " 0 * :";
-        }
-
-        std::istringstream iss(message);
-        std::string command, username, mode, unused, realname;
-        iss >> command >> username >> mode >> unused;
-        std::getline(iss, realname);
-
-        // Supprime le ":" au début du realname si présent
-        if (!realname.empty() && realname[0] == ':') {
-            realname.erase(0, 1);
-        }
-
-        // Vérifie que le username n'est pas vide
-        if (username.empty()) {
-            send(clientSocket, "❌ Veuillez entrer un nom valide : \r\n", 40, 0);
-            return;
-        }
-
-        handleUser(clientSocket, username, realname);
-        send(clientSocket, "✅ Inscription terminée ! 🎉\r\n", 34, 0);
-        return;
-    }
+    // ✅ Appeler le gestionnaire de commandes
+    commandHandler.handleCommand(clientSocket, message);
 }
-
-
-
 
 /**
  * @brief Déconnecte et supprime un client du serveur.
@@ -266,6 +237,7 @@ void Server::removeClient(int clientSocket) {
         return;
     }
 
+    std::cout << std::endl;
     std::cout << "🔴 Client déconnecté." << std::endl;
     close(clientSocket);
 
@@ -294,8 +266,7 @@ void Server::removeClient(int clientSocket) {
  * @param clientSocket Le descripteur de fichier du client.
  * @param password Le mot de passe fourni par le client.
  */
-void Server::handlePass(int clientSocket, const std::string& message) {
-    // Vérifie que le client existe avant d'accéder à lui
+void Server::handlePass(int clientSocket, const std::string& password) {
     if (clients.find(clientSocket) == clients.end()) {
         return;
     }
@@ -305,30 +276,17 @@ void Server::handlePass(int clientSocket, const std::string& message) {
         return;
     }
 
-    // Vérifier si le message commence par "PASS "
-    if (message.substr(0, 5) != "PASS ") {
-        send(clientSocket, "ERROR :Invalid PASS command\r\n", 29, 0);
-        return;
-    }
-
-    // Extraire le mot de passe après "PASS "
-    std::string receivedPassword = message.substr(5);
-    receivedPassword.erase(receivedPassword.find_last_not_of("\r\n") + 1);
-
-    if (receivedPassword != this->password) {
-        send(clientSocket, "❌ ERROR :Incorrect password\r\n", 30, 0);
-        
-        // Vérifie avant suppression
-        if (clients.find(clientSocket) != clients.end()) {
-            removeClient(clientSocket);
-        }
-
+    // Vérifier si le mot de passe est correct
+    if (password != this->password) {
+        send(clientSocket, "ERROR :Incorrect password\r\n", 30, 0);
+        removeClient(clientSocket);
         return;
     }
 
     clients[clientSocket]->authenticate();
-    send(clientSocket, "✅ OK :Password accepted\r\n\r\nVotre pseudo : \r\n", 44, 0);
+    send(clientSocket, "✅ OK :Password accepted\r\n", 28, 0);
 }
+
 
 
 
@@ -376,5 +334,156 @@ void Server::handleUser(int clientSocket, const std::string& username, const std
 
     std::string response = "OK :Username and realname set\r\n";
     send(clientSocket, response.c_str(), response.size(), 0);
+}
+
+/**
+ * @brief Gère la commande JOIN pour qu'un client rejoigne un channel.
+ *
+ * - Vérifie si le channel existe déjà ou le crée.
+ * - Ajoute le client à la liste des membres du channel.
+ * - Informe les autres membres de la présence du nouveau client.
+ *
+ * @param clientSocket Le descripteur du client.
+ * @param channelName Le nom du channel à rejoindre.
+ */
+void Server::handleJoin(int clientSocket, const std::string& channelName) {
+    if (channelName.empty()) {
+        send(clientSocket, "ERROR :No channel name provided\r\n", 33, 0);
+        return;
+    }
+
+    if (channels.find(channelName) == channels.end()) {
+        channels[channelName] = new Channel(channelName);
+    }
+
+    Channel *channel = channels[channelName];
+    channel->addClient(clientSocket);
+    clients[clientSocket]->setCurrentChannel(channelName);
+
+    std::string joinMsg = ":" + clients[clientSocket]->getNickname() + " JOIN " + channelName + "\r\n";
+
+    std::cout << "🔹 Envoi du message JOIN à " << clients[clientSocket]->getNickname() << " : " << joinMsg;
+    std::cout << std::endl;
+
+    int bytesSent = send(clientSocket, joinMsg.c_str(), joinMsg.length(), 0);
+    if (bytesSent == -1) {
+        perror("❌ Erreur lors de l'envoi du message JOIN");
+    } else {
+        std::cout << "✅ Message JOIN envoyé avec succès (" << bytesSent << " bytes)\n";
+    }
+
+    // Envoyer le message aux autres membres du channel
+    channel->broadcast(joinMsg, clientSocket);
+}
+
+
+
+
+/**
+ * @brief Gère la commande PART pour qu'un client quitte un channel.
+ *
+ * - Vérifie si le client est dans le channel.
+ * - Le retire du channel et en informe les autres membres.
+ * - Si le channel est vide, il est supprimé.
+ *
+ * @param clientSocket Le descripteur du client.
+ * @param channelName Le nom du channel à quitter.
+ */
+void Server::handlePart(int clientSocket, const std::string& channelName) {
+    if (channels.find(channelName) == channels.end()) {
+        send(clientSocket, "ERROR :No such channel\r\n", 24, 0);
+        return;
+    }
+
+    Channel *channel = channels[channelName];
+    if (!channel->isClientInChannel(clientSocket)) {
+        send(clientSocket, "ERROR :You're not in this channel\r\n", 36, 0);
+        return;
+    }
+
+    std::string partMsg = ":" + clients[clientSocket]->getNickname() + " PART " + channelName + "\r\n";
+
+    std::cout << "🔹 Envoi message PART au client : " << partMsg << std::endl;
+    int bytesSent = send(clientSocket, partMsg.c_str(), partMsg.length(), 0);
+    if (bytesSent == -1) {
+        perror("❌ Erreur lors de l'envoi du message PART");
+    } else {
+        std::cout << "✅ Message PART envoyé avec succès (" << bytesSent << " bytes)\n";
+    }
+
+    channel->broadcast(partMsg, clientSocket);
+
+    channel->removeClient(clientSocket);
+    clients[clientSocket]->setCurrentChannel("");
+
+    std::cout << "✅ Client " << clients[clientSocket]->getNickname() << " a quitté " << channelName << std::endl;
+
+    if (channel->isEmpty()) {
+        delete channel;
+        channels.erase(channelName);
+    }
+}
+
+
+/**
+ * @brief Trouve le socket d'un client à partir de son pseudo.
+ *
+ * @param nickname Le pseudo du client à rechercher.
+ * @return int Le descripteur de fichier du client, ou -1 si introuvable.
+ */
+int Server::getClientSocketByNickname(const std::string& nickname) const {
+    for (std::map<int, Client*>::const_iterator it = clients.begin(); it != clients.end(); ++it) {
+        if (it->second->getNickname() == nickname) {
+            return it->first;
+        }
+    }
+    return -1; // Retourne -1 si aucun client ne correspond
+}
+
+/**
+ * @brief Gère la commande PRIVMSG pour envoyer un message privé.
+ *
+ * - Vérifie si la cible est un channel ou un utilisateur.
+ * - Envoie le message à tous les membres du channel ou au destinataire direct.
+ *
+ * @param clientSocket Le descripteur du client envoyant le message.
+ * @param target Le destinataire (pseudo ou channel).
+ * @param message Le message à envoyer.
+ */
+void Server::handlePrivMsg(int clientSocket, const std::string& target, const std::string& message) {
+    if (target.empty() || message.empty()) {
+        send(clientSocket, "ERROR :Invalid PRIVMSG format\r\n", 31, 0);
+        return;
+    }
+
+    if (channels.find(target) != channels.end()) {
+        // Envoyer le message à tous les membres du channel
+        Channel *channel = channels[target];
+        std::string msg = ":" + clients[clientSocket]->getNickname() + " PRIVMSG " + target + " :" + message + "\r\n";
+        channel->broadcast(msg, clientSocket);
+    } else {
+        // Trouver le socket du client à partir de son pseudo
+        int targetSocket = getClientSocketByNickname(target);
+        if (targetSocket == -1) {
+            send(clientSocket, "ERROR :No such nick\r\n", 21, 0);
+            return;
+        }
+
+        // Envoyer le message au client spécifique
+        std::string msg = ":" + clients[clientSocket]->getNickname() + " PRIVMSG " + target + " :" + message + "\r\n";
+        send(targetSocket, msg.c_str(), msg.length(), 0);
+    }
+}
+
+void Server::handleList(int clientSocket) {
+    std::string listMsg = "Active channels:\r\n";
+    for (std::map<std::string, Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
+        listMsg += "- " + it->first + "\r\n";
+    }
+    send(clientSocket, listMsg.c_str(), listMsg.length(), 0);
+}
+
+std::map<int, Client*>& Server::getClients() {
+    return clients;
 }
 

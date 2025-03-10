@@ -234,3 +234,19 @@ Une fois que les commandes de base fonctionnent, on doit gérer correctement les
 valgrind --leak-check=full --show-leak-kinds=all ./irc 6667 mypassword
 
     📌 Vérifier les fuites mémoire et les accès à des zones non allouées.
+
+
+
+
+
+
+
+
+
+<------------------------------------------------------------------------------------------------------------->
+
+
+
+
+Doc pour les liens client IRC 
+https://www.rfc-editor.org/rfc/rfc2812
