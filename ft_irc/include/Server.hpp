@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:07:11 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/12 00:09:04 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/12 00:26:01 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -40,6 +40,7 @@ class CommandHandler;
 
 class Server {
 private:
+    bool                            running;            // Server running info
     int                             serverSocket;       // Socket du serveur
     int                             port;               // Port d'écoute
     std::string                     password;           // Mot de passe du serveur
@@ -49,41 +50,40 @@ private:
     CommandHandler                  commandHandler;     // Gestionnaire de commandes
 
     
-    bool                            running;
 
-
+    /*                                Gestion des Connexions                      */
     void    handleNewConnection();
-    void    handleClientMessage(int clientSocket);
     void    removeClient(int clientSocket);
+    
+    /*                                Gestion des Messages                        */
+    void    handleClientMessage(int clientSocket);
 
 public:
-    Server(int port, std::string password);
-    ~Server();
-
     std::string     serverName;
 
-
-    void    run();
+    /*                                Constructeur / Destructeur                  */
+    Server(int port, std::string password);
+    ~Server();
     
-    // Gestion de l'authentification
+    /*                                Gestion du Serveur                          */
+    void    run();
+    void    shutdownServer();
+
+    /*                                Gestion des Messages                        */
+    void    handlePrivMsg(int clientSocket, const std::string& target, const std::string& message);
+
+    /*                                Gestion des Commandes IRC                   */
     void    handlePass(int clientSocket, const std::string& password);
     void    handleNick(int clientSocket, const std::string& nickname);
     void    handleUser(int clientSocket, const std::string& username, const std::string& realname);
-
-    // Gestion des channels
     void    handleJoin(int clientSocket, const std::string& channelName);
     void    handlePart(int clientSocket, const std::string& channelName);
     void    handleList(int clientSocket);
+    void    handleQuit(int clientSocket, const std::string& quitMessage);
 
-    // Messagerie
-    void    handlePrivMsg(int clientSocket, const std::string& target, const std::string& message);
-
-    // Utilitaire
-    int                     getClientSocketByNickname(const std::string& nickname) const;
+    /*                                Utilitaires                                 */
+    int     getClientSocketByNickname(const std::string& nickname) const;
     std::map<int, Client*>& getClients();
-    void handleQuit(int clientSocket, const std::string& quitMessage);
-    void shutdownServer();
-    void stopServer();
 };
 
 

@@ -6,12 +6,16 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/12 00:04:07 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/12 00:29:31 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../include/Server.hpp"
 
+
+/* -------------------------------------------------------------------------- */
+/*                                Constructeur / Destructeur                  */
+/* -------------------------------------------------------------------------- */
 /**
  * @brief Constructeur du serveur IRC.
  *
@@ -79,6 +83,10 @@ Server::~Server() {
     std::cout << "🔴 Serveur arrêté." << std::endl;
 }
 
+/* -------------------------------------------------------------------------- */
+/*                                Gestion du Serveur                          */
+/* -------------------------------------------------------------------------- */
+
 /**
  * @brief Boucle principale du serveur IRC.
  *
@@ -118,6 +126,51 @@ void Server::run() {
         }
     }
 }
+
+void Server::shutdownServer() {
+    std::cout << "\n🛑 Arrêt du serveur IRC...\n";
+
+    // 🔹 Envoyer un message de fermeture à tous les clients
+    std::string shutdownMsg = "ERROR :Server shutting down\r\n";
+    for (std::map<int, Client*>::iterator it = clients.begin(); it != clients.end(); ++it) {
+        send(it->first, shutdownMsg.c_str(), shutdownMsg.size(), 0);
+        close(it->first);
+        delete it->second;  // ✅ Libérer chaque client
+    }
+    clients.clear();  // ✅ Vider la map après suppression
+
+    // 🔹 Libérer la mémoire des canaux
+    for (std::map<std::string, Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
+        delete it->second;  // ✅ Libérer chaque canal
+    }
+    channels.clear();  // ✅ Vider la map après suppression
+
+    // 🔹 Assurer la libération des objets internes
+    std::cout << "🔄 Nettoyage final des ressources...\n";
+
+    // ✅ Vider et forcer la libération du vecteur pollFds
+    pollFds.clear();
+    std::vector<pollfd>().swap(pollFds);
+
+    // ✅ Vider et libérer les strings utilisées
+    serverName = "";
+    password = "";
+    std::string().swap(serverName);
+    std::string().swap(password);
+    std::string().swap(shutdownMsg);
+    
+
+
+    // 🔹 Fermer le socket du serveur
+    close(serverSocket);
+
+    std::cout << "✅ Serveur IRC arrêté proprement.\n";
+    exit(0);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                Gestion des Connexions                      */
+/* -------------------------------------------------------------------------- */
 
 /**
  * @brief Gère l'arrivée d'une nouvelle connexion client.
@@ -177,6 +230,52 @@ void Server::handleNewConnection() {
     }
 }
 
+/**
+ * @brief Déconnecte et supprime un client du serveur.
+ *
+ * - Ferme le socket du client pour libérer la ressource.
+ * - Supprime l'objet `Client` correspondant et le retire de la liste des clients connectés.
+ * - Supprime le client de la liste des sockets surveillés par `poll()`.
+ * - Affiche un message indiquant la déconnexion du client.
+ *
+ * @param clientSocket Le descripteur de fichier du client à supprimer.
+ */
+void Server::removeClient(int clientSocket) {
+    if (clients.find(clientSocket) == clients.end()) return;
+
+    Client *client = clients[clientSocket];
+
+    if (!client->getNickname().empty()) {
+        std::string quitMsg = ":" + client->getNickname() + "!" + client->getUsername()
+                            + "@localhost QUIT :Client disconnected\r\n";
+
+        // Informe tous les canaux auxquels appartient ce client
+        for (std::map<std::string, Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
+            if (it->second->isClientInChannel(clientSocket)) {
+                it->second->broadcast(quitMsg, clientSocket);
+                it->second->removeClient(clientSocket);
+            }
+        }
+    }
+
+    close(clientSocket);
+    delete client;  
+    clients.erase(clientSocket);
+
+    for (size_t i = 0; i < pollFds.size(); ++i) {
+        if (pollFds[i].fd == clientSocket) {
+            pollFds.erase(pollFds.begin() + i);
+            break;
+        }
+    }
+
+    std::cout << "🔴 Client déconnecté proprement." << std::endl;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                Gestion des Messages                        */
+/* -------------------------------------------------------------------------- */
+
 
 /**
  * @brief Gère la réception d'un message d'un client.
@@ -221,48 +320,57 @@ void Server::handleClientMessage(int clientSocket) {
 }
 
 /**
- * @brief Déconnecte et supprime un client du serveur.
+ * @brief Gère la commande PRIVMSG pour envoyer un message privé.
  *
- * - Ferme le socket du client pour libérer la ressource.
- * - Supprime l'objet `Client` correspondant et le retire de la liste des clients connectés.
- * - Supprime le client de la liste des sockets surveillés par `poll()`.
- * - Affiche un message indiquant la déconnexion du client.
+ * - Vérifie si la cible est un channel ou un utilisateur.
+ * - Envoie le message à tous les membres du channel ou au destinataire direct.
  *
- * @param clientSocket Le descripteur de fichier du client à supprimer.
+ * @param clientSocket Le descripteur du client envoyant le message.
+ * @param target Le destinataire (pseudo ou channel).
+ * @param message Le message à envoyer.
  */
-void Server::removeClient(int clientSocket) {
-    if (clients.find(clientSocket) == clients.end()) return;
-
-    Client *client = clients[clientSocket];
-
-    if (!client->getNickname().empty()) {
-        std::string quitMsg = ":" + client->getNickname() + "!" + client->getUsername()
-                            + "@localhost QUIT :Client disconnected\r\n";
-
-        // Informe tous les canaux auxquels appartient ce client
-        for (std::map<std::string, Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
-            if (it->second->isClientInChannel(clientSocket)) {
-                it->second->broadcast(quitMsg, clientSocket);
-                it->second->removeClient(clientSocket);
-            }
-        }
+void Server::handlePrivMsg(int clientSocket, const std::string& target, const std::string& message) {
+    if (message.empty()) {
+        send(clientSocket, "ERROR :No text to send\r\n", 25, 0);
+        return;
     }
 
-    close(clientSocket);
-    delete client;  
-    clients.erase(clientSocket);
+    // 📌 Suppression correcte du ":" en début de message uniquement si présent
+    std::string cleanMessage = message;
+    if (!cleanMessage.empty() && cleanMessage[0] == ':') {
+        cleanMessage = cleanMessage.substr(1);
+    }
 
-    for (size_t i = 0; i < pollFds.size(); ++i) {
-        if (pollFds[i].fd == clientSocket) {
-            pollFds.erase(pollFds.begin() + i);
+    std::string fullMessage = ":" + clients[clientSocket]->getNickname() +
+                              " PRIVMSG " + target + " :" + cleanMessage + "\r\n";
+
+    // 📌 Vérifier si c'est un message envoyé à un canal
+    if (channels.find(target) != channels.end()) {
+        Channel* channel = channels[target];
+        channel->broadcast(fullMessage, clientSocket);
+        return;
+    }
+
+    // 📌 Vérifier si c'est un message envoyé à un utilisateur
+    bool userFound = false;
+    for (std::map<int, Client*>::iterator it = clients.begin(); it != clients.end(); ++it) {
+        if (it->second->getNickname() == target) {
+            send(it->second->getSocketFd(), fullMessage.c_str(), fullMessage.size(), 0);
+            userFound = true;
             break;
         }
     }
 
-    std::cout << "🔴 Client déconnecté proprement." << std::endl;
+    // 📌 Si aucun utilisateur trouvé, renvoyer une erreur
+    if (!userFound) {
+        std::string errorMsg = "ERROR :No such nick/channel\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
+    }
 }
 
-
+/* -------------------------------------------------------------------------- */
+/*                                Gestion des Commandes IRC                   */
+/* -------------------------------------------------------------------------- */
 
 /**
  * @brief Gère la commande PASS pour l'authentification du client.
@@ -472,88 +580,6 @@ void Server::handlePart(int clientSocket, const std::string& channelName) {
     }
 }
 
-
-/**
- * @brief Trouve le socket d'un client à partir de son pseudo.
- *
- * @param nickname Le pseudo du client à rechercher.
- * @return int Le descripteur de fichier du client, ou -1 si introuvable.
- */
-int Server::getClientSocketByNickname(const std::string& nickname) const {
-    for (std::map<int, Client*>::const_iterator it = clients.begin(); it != clients.end(); ++it) {
-        if (it->second->getNickname() == nickname) {
-            return it->first;
-        }
-    }
-    return -1; // Retourne -1 si aucun client ne correspond
-}
-
-/**
- * @brief Gère la commande PRIVMSG pour envoyer un message privé.
- *
- * - Vérifie si la cible est un channel ou un utilisateur.
- * - Envoie le message à tous les membres du channel ou au destinataire direct.
- *
- * @param clientSocket Le descripteur du client envoyant le message.
- * @param target Le destinataire (pseudo ou channel).
- * @param message Le message à envoyer.
- */
-void Server::handlePrivMsg(int clientSocket, const std::string& target, const std::string& message) {
-    if (message.empty()) {
-        send(clientSocket, "ERROR :No text to send\r\n", 25, 0);
-        return;
-    }
-
-    // 📌 Suppression correcte du ":" en début de message uniquement si présent
-    std::string cleanMessage = message;
-    if (!cleanMessage.empty() && cleanMessage[0] == ':') {
-        cleanMessage = cleanMessage.substr(1);
-    }
-
-    std::string fullMessage = ":" + clients[clientSocket]->getNickname() +
-                              " PRIVMSG " + target + " :" + cleanMessage + "\r\n";
-
-    // 📌 Vérifier si c'est un message envoyé à un canal
-    if (channels.find(target) != channels.end()) {
-        Channel* channel = channels[target];
-        channel->broadcast(fullMessage, clientSocket);
-        return;
-    }
-
-    // 📌 Vérifier si c'est un message envoyé à un utilisateur
-    bool userFound = false;
-    for (std::map<int, Client*>::iterator it = clients.begin(); it != clients.end(); ++it) {
-        if (it->second->getNickname() == target) {
-            send(it->second->getSocketFd(), fullMessage.c_str(), fullMessage.size(), 0);
-            userFound = true;
-            break;
-        }
-    }
-
-    // 📌 Si aucun utilisateur trouvé, renvoyer une erreur
-    if (!userFound) {
-        std::string errorMsg = "ERROR :No such nick/channel\r\n";
-        send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
-    }
-}
-
-
-
-
-void Server::handleList(int clientSocket) {
-    std::string listMsg = "Active channels:\r\n";
-    for (std::map<std::string, Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
-        listMsg += "- " + it->first + "\r\n";
-    }
-    send(clientSocket, listMsg.c_str(), listMsg.length(), 0);
-}
-
-std::map<int, Client*>& Server::getClients() {
-    return clients;
-}
-
-
-
 void Server::handleQuit(int clientSocket, const std::string& quitMessage) {
     if (clients.find(clientSocket) == clients.end()) {
         return; // Le client n'existe pas (déjà supprimé)
@@ -581,44 +607,34 @@ void Server::handleQuit(int clientSocket, const std::string& quitMessage) {
     std::cout << "🚪 [" << nick << "] s'est déconnecté proprement.\n";
 }
 
-
-void Server::shutdownServer() {
-    std::cout << "\n🛑 Arrêt du serveur IRC...\n";
-
-    // 🔹 Envoyer un message de fermeture à tous les clients
-    std::string shutdownMsg = "ERROR :Server shutting down\r\n";
-    for (std::map<int, Client*>::iterator it = clients.begin(); it != clients.end(); ++it) {
-        send(it->first, shutdownMsg.c_str(), shutdownMsg.size(), 0);
-        close(it->first);
-        delete it->second;  // ✅ Libérer chaque client
-    }
-    clients.clear();  // ✅ Vider la map après suppression
-
-    // 🔹 Libérer la mémoire des canaux
+void Server::handleList(int clientSocket) {
+    std::string listMsg = "Active channels:\r\n";
     for (std::map<std::string, Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
-        delete it->second;  // ✅ Libérer chaque canal
+        listMsg += "- " + it->first + "\r\n";
     }
-    channels.clear();  // ✅ Vider la map après suppression
-
-    // 🔹 Assurer la libération des objets internes
-    std::cout << "🔄 Nettoyage final des ressources...\n";
-
-    // ✅ Vider et forcer la libération du vecteur pollFds
-    pollFds.clear();
-    std::vector<pollfd>().swap(pollFds);
-
-    // ✅ Vider et libérer les strings utilisées
-    serverName = "";
-    password = "";
-    std::string().swap(serverName);
-    std::string().swap(password);
-    std::string().swap(shutdownMsg);
-    
+    send(clientSocket, listMsg.c_str(), listMsg.length(), 0);
+}
 
 
-    // 🔹 Fermer le socket du serveur
-    close(serverSocket);
+/* -------------------------------------------------------------------------- */
+/*                                Utilitaires                                 */
+/* -------------------------------------------------------------------------- */
 
-    std::cout << "✅ Serveur IRC arrêté proprement.\n";
-    exit(0);
+/**
+ * @brief Trouve le socket d'un client à partir de son pseudo.
+ *
+ * @param nickname Le pseudo du client à rechercher.
+ * @return int Le descripteur de fichier du client, ou -1 si introuvable.
+ */
+int Server::getClientSocketByNickname(const std::string& nickname) const {
+    for (std::map<int, Client*>::const_iterator it = clients.begin(); it != clients.end(); ++it) {
+        if (it->second->getNickname() == nickname) {
+            return it->first;
+        }
+    }
+    return -1; // Retourne -1 si aucun client ne correspond
+}
+
+std::map<int, Client*>& Server::getClients() {
+    return clients;
 }

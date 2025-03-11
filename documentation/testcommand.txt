@@ -13,6 +13,8 @@ PASS mypassword
 NICK user1
 USER u1 0 * :User One
 JOIN #test
+PRIVMSG user2 :test
+PRIVMSG #test :Salut à tous !
 
 	client 2:
 
