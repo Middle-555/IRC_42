@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/10 15:49:43 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/10 15:49:56 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/11 23:24:22 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -38,4 +38,8 @@ void Channel::broadcast(const std::string& message, int excludeSocket) {
 
 bool Channel::isEmpty() const {
     return clients.empty();
+}
+
+const std::set<int>& Channel::getClients() const {
+    return clients;
 }

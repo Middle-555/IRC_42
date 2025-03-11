@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:07:11 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/11 22:09:25 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/12 00:09:04 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,6 +26,7 @@
 #include <arpa/inet.h>
 #include <poll.h>
 #include <sstream>
+#include <csignal>
 
 #include "Client.hpp"
 #include "Channel.hpp"
@@ -47,6 +48,10 @@ private:
     std::map<std::string, Channel*> channels;           // Map des channels (clé = nom du channel)
     CommandHandler                  commandHandler;     // Gestionnaire de commandes
 
+    
+    bool                            running;
+
+
     void    handleNewConnection();
     void    handleClientMessage(int clientSocket);
     void    removeClient(int clientSocket);
@@ -54,6 +59,9 @@ private:
 public:
     Server(int port, std::string password);
     ~Server();
+
+    std::string     serverName;
+
 
     void    run();
     
@@ -73,6 +81,9 @@ public:
     // Utilitaire
     int                     getClientSocketByNickname(const std::string& nickname) const;
     std::map<int, Client*>& getClients();
+    void handleQuit(int clientSocket, const std::string& quitMessage);
+    void shutdownServer();
+    void stopServer();
 };
 
 

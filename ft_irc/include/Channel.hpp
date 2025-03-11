@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/10 15:50:02 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/10 15:50:07 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/11 23:23:59 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -28,6 +28,7 @@ public:
     bool isClientInChannel(int clientSocket) const;
     void broadcast(const std::string& message, int excludeSocket = -1);
     bool isEmpty() const;
+    const std::set<int>& getClients() const;
 };
 
 #endif

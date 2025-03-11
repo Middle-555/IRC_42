@@ -1,0 +1,48 @@
+	BIND 1
+	
+	server :
+
+
+valgrind --leak-check=full --show-leak-kinds=all ./irc 6667 mypassword
+
+
+	client 1: 
+
+nc 127.0.0.1 6667
+PASS mypassword
+NICK user1
+USER u1 0 * :User One
+JOIN #test
+
+	client 2:
+
+nc 127.0.0.1 6667
+PASS mypassword
+NICK user2
+USER u2 0 * :User Two
+JOIN #test
+
+<------------------------------------------------------------------------------------->
+	BIND 2
+		
+	server :
+
+
+valgrind --leak-check=full ./irc 6668 mypassword
+
+
+	client 1: 
+
+nc 127.0.0.1 6668
+PASS mypassword
+NICK user1
+USER u1 0 * :User One
+JOIN #test
+
+	client 2:
+
+nc 127.0.0.1 6668
+PASS mypassword
+NICK user2
+USER u2 0 * :User Two
+JOIN #test

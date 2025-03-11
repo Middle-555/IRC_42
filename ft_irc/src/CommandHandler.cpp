@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 23:11:20 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/11 22:33:27 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/11 23:22:10 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -71,6 +71,13 @@ void CommandHandler::handleCommand(int clientSocket, const std::string &command)
         std::string channel;
         iss >> channel;
         server.handleJoin(clientSocket, channel);
+    } else if (cmd == "QUIT") {
+        std::string quitMessage;
+        std::getline(iss, quitMessage);
+        if (!quitMessage.empty() && quitMessage[0] == ':') {
+            quitMessage.erase(0, 1);
+        }
+        server.handleQuit(clientSocket, quitMessage);
     } else if (cmd == "PART") {
         std::string channel;
         iss >> channel;

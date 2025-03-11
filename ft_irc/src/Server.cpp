@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/11 22:46:34 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/12 00:04:07 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,10 +25,11 @@
  * @throws EXIT_FAILURE en cas d'erreur lors de la création du socket, du bind ou du listen.
  */
 Server::Server(int port, std::string password)
-    : port(port), password(password), commandHandler(*this) {  // ✅ Initialisation du commandHandler
+    : port(port), password(password), commandHandler(*this) {
     struct sockaddr_in serverAddr;
     
     // Création du socket serveur
+    serverName = "irc.42server.com";
     serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket < 0) {
         perror("Erreur socket()");
@@ -358,8 +359,17 @@ void Server::handleUser(int clientSocket, const std::string& username, const std
                          + " and real name to : " + realname + "\r\n";
 
     send(clientSocket, response.c_str(), response.size(), 0);
-}
 
+    // 🔹 Vérifier si le client est maintenant complètement enregistré (NICK + USER)
+    if (clients[clientSocket]->isFullyRegistered()) {
+        std::string welcomeMsg = ":irc.42server.com 001 " + clients[clientSocket]->getNickname() +
+                                 " :Welcome to the Internet Relay Network " +
+                                 clients[clientSocket]->getNickname() + "!" +
+                                 clients[clientSocket]->getUsername() + "@localhost\r\n";
+
+        send(clientSocket, welcomeMsg.c_str(), welcomeMsg.size(), 0);
+    }
+}
 
 /**
  * @brief Gère la commande JOIN pour qu'un client rejoigne un channel.
@@ -385,23 +395,36 @@ void Server::handleJoin(int clientSocket, const std::string& channelName) {
     channel->addClient(clientSocket);
     clients[clientSocket]->setCurrentChannel(channelName);
 
-    std::string joinMsg = ":" + clients[clientSocket]->getNickname() + " JOIN " + channelName + "\r\n";
+    std::string nick = clients[clientSocket]->getNickname();
+    std::string serverName = "irc.42server.com"; // Définition du serveur
 
-    std::cout << "🔹 Envoi du message JOIN à " << clients[clientSocket]->getNickname() << " : " << joinMsg;
-    std::cout << std::endl;
+    // 1️⃣ Message JOIN
+    std::string joinMsg = ":" + nick + " JOIN :" + channelName + "\r\n";
+    channel->broadcast(joinMsg, -1);
 
-    int bytesSent = send(clientSocket, joinMsg.c_str(), joinMsg.length(), 0);
-    if (bytesSent == -1) {
-        perror("❌ Erreur lors de l'envoi du message JOIN");
-    } else {
-        std::cout << "✅ Message JOIN envoyé avec succès (" << bytesSent << " bytes)\n";
-    }
+    // 2️⃣ Réponse 332 (Topic du channel)
+    std::string topicMsg = ":" + serverName + " 332 " + nick + " " + channelName + " :Welcome to " + channelName + "\r\n";
+    send(clientSocket, topicMsg.c_str(), topicMsg.size(), 0);
 
-    // Envoyer le message aux autres membres du channel
-    channel->broadcast(joinMsg, clientSocket);
+    // 3️⃣ Réponse 353 (Liste des utilisateurs du channel)
+    std::string userList = ":" + serverName + " 353 " + nick + " = " + channelName + " :";
+    const std::set<int>& channelClients = channel->getClients();
+    for (std::set<int>::iterator it = channelClients.begin(); it != channelClients.end(); ++it) {
+        if (it != channelClients.begin()) {
+            userList += " ";  // Ajoute un espace uniquement entre les pseudos
+        }
+        userList += clients[*it]->getNickname();
+    }    
+    userList += "\r\n";
+    send(clientSocket, userList.c_str(), userList.size(), 0);
+
+    // 4️⃣ Réponse 366 (Fin de la liste des utilisateurs)
+    std::string endOfListMsg = ":" + serverName + " 366 " + nick + " " + channelName + " :End of NAMES list\r\n";
+    send(clientSocket, endOfListMsg.c_str(), endOfListMsg.size(), 0);
+
+    // Log
+    std::cout << "✅ [" << nick << "] a rejoint le canal " << channelName << std::endl;
 }
-
-
 
 
 /**
@@ -476,29 +499,46 @@ int Server::getClientSocketByNickname(const std::string& nickname) const {
  * @param message Le message à envoyer.
  */
 void Server::handlePrivMsg(int clientSocket, const std::string& target, const std::string& message) {
-    if (target.empty() || message.empty()) {
-        send(clientSocket, "ERROR :Invalid PRIVMSG format\r\n", 31, 0);
+    if (message.empty()) {
+        send(clientSocket, "ERROR :No text to send\r\n", 25, 0);
         return;
     }
 
-    if (channels.find(target) != channels.end()) {
-        // Envoyer le message à tous les membres du channel
-        Channel *channel = channels[target];
-        std::string msg = ":" + clients[clientSocket]->getNickname() + " PRIVMSG " + target + " :" + message + "\r\n";
-        channel->broadcast(msg, clientSocket);
-    } else {
-        // Trouver le socket du client à partir de son pseudo
-        int targetSocket = getClientSocketByNickname(target);
-        if (targetSocket == -1) {
-            send(clientSocket, "ERROR :No such nick\r\n", 21, 0);
-            return;
-        }
+    // 📌 Suppression correcte du ":" en début de message uniquement si présent
+    std::string cleanMessage = message;
+    if (!cleanMessage.empty() && cleanMessage[0] == ':') {
+        cleanMessage = cleanMessage.substr(1);
+    }
 
-        // Envoyer le message au client spécifique
-        std::string msg = ":" + clients[clientSocket]->getNickname() + " PRIVMSG " + target + " :" + message + "\r\n";
-        send(targetSocket, msg.c_str(), msg.length(), 0);
+    std::string fullMessage = ":" + clients[clientSocket]->getNickname() +
+                              " PRIVMSG " + target + " :" + cleanMessage + "\r\n";
+
+    // 📌 Vérifier si c'est un message envoyé à un canal
+    if (channels.find(target) != channels.end()) {
+        Channel* channel = channels[target];
+        channel->broadcast(fullMessage, clientSocket);
+        return;
+    }
+
+    // 📌 Vérifier si c'est un message envoyé à un utilisateur
+    bool userFound = false;
+    for (std::map<int, Client*>::iterator it = clients.begin(); it != clients.end(); ++it) {
+        if (it->second->getNickname() == target) {
+            send(it->second->getSocketFd(), fullMessage.c_str(), fullMessage.size(), 0);
+            userFound = true;
+            break;
+        }
+    }
+
+    // 📌 Si aucun utilisateur trouvé, renvoyer une erreur
+    if (!userFound) {
+        std::string errorMsg = "ERROR :No such nick/channel\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
     }
 }
+
+
+
 
 void Server::handleList(int clientSocket) {
     std::string listMsg = "Active channels:\r\n";
@@ -512,3 +552,73 @@ std::map<int, Client*>& Server::getClients() {
     return clients;
 }
 
+
+
+void Server::handleQuit(int clientSocket, const std::string& quitMessage) {
+    if (clients.find(clientSocket) == clients.end()) {
+        return; // Le client n'existe pas (déjà supprimé)
+    }
+
+    Client* client = clients[clientSocket];
+    std::string nick = client->getNickname();
+    std::string fullQuitMessage = ":" + nick + " QUIT :" + (quitMessage.empty() ? "Client exited" : quitMessage) + "\r\n";
+
+    // 🔹 Informer le canal où était le client (si applicable)
+    std::string currentChannel = client->getCurrentChannel();
+    if (!currentChannel.empty() && channels.find(currentChannel) != channels.end()) {
+        channels[currentChannel]->broadcast(fullQuitMessage, clientSocket);
+        channels[currentChannel]->removeClient(clientSocket);
+    }
+
+    // 🔹 Fermer la connexion
+    send(clientSocket, fullQuitMessage.c_str(), fullQuitMessage.size(), 0);
+    close(clientSocket);
+
+    // 🔹 Supprimer le client de la liste
+    delete clients[clientSocket];
+    clients.erase(clientSocket);
+
+    std::cout << "🚪 [" << nick << "] s'est déconnecté proprement.\n";
+}
+
+
+void Server::shutdownServer() {
+    std::cout << "\n🛑 Arrêt du serveur IRC...\n";
+
+    // 🔹 Envoyer un message de fermeture à tous les clients
+    std::string shutdownMsg = "ERROR :Server shutting down\r\n";
+    for (std::map<int, Client*>::iterator it = clients.begin(); it != clients.end(); ++it) {
+        send(it->first, shutdownMsg.c_str(), shutdownMsg.size(), 0);
+        close(it->first);
+        delete it->second;  // ✅ Libérer chaque client
+    }
+    clients.clear();  // ✅ Vider la map après suppression
+
+    // 🔹 Libérer la mémoire des canaux
+    for (std::map<std::string, Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
+        delete it->second;  // ✅ Libérer chaque canal
+    }
+    channels.clear();  // ✅ Vider la map après suppression
+
+    // 🔹 Assurer la libération des objets internes
+    std::cout << "🔄 Nettoyage final des ressources...\n";
+
+    // ✅ Vider et forcer la libération du vecteur pollFds
+    pollFds.clear();
+    std::vector<pollfd>().swap(pollFds);
+
+    // ✅ Vider et libérer les strings utilisées
+    serverName = "";
+    password = "";
+    std::string().swap(serverName);
+    std::string().swap(password);
+    std::string().swap(shutdownMsg);
+    
+
+
+    // 🔹 Fermer le socket du serveur
+    close(serverSocket);
+
+    std::cout << "✅ Serveur IRC arrêté proprement.\n";
+    exit(0);
+}
