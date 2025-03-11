@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:07:11 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/10 16:43:20 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/11 22:09:25 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,6 +30,7 @@
 #include "Client.hpp"
 #include "Channel.hpp"
 #include "CommandHandler.hpp"
+#include "Utils.hpp"
 
 #define MAX_CLIENTS 100  // Limite de clients simultanés
 
@@ -73,5 +74,6 @@ public:
     int                     getClientSocketByNickname(const std::string& nickname) const;
     std::map<int, Client*>& getClients();
 };
+
 
 #endif // SERVER_HPP

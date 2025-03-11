@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 23:47:29 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/10 16:49:42 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/11 22:43:25 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -63,5 +63,6 @@ std::string Client::getCurrentChannel() const {
 }
 
 bool Client::isFullyRegistered() const {
-    return !nickname.empty() && !username.empty() && isAuthenticated();
+    return !nickname.empty() && !username.empty() && !realname.empty() && isAuthenticated();
 }
+

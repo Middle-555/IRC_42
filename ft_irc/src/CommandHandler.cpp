@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 23:11:20 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/10 16:46:18 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/11 22:33:27 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -44,7 +44,7 @@ void CommandHandler::handleCommand(int clientSocket, const std::string &command)
 
     // 🔒 **Obliger NICK et USER avant toute autre commande**
     if (!client->isFullyRegistered() && cmd != "NICK" && cmd != "USER" && cmd != "PASS") {
-        send(clientSocket, "ERROR :You must register with NICK and USER first\r\n", 51, 0);
+        send(clientSocket, "ERROR :You must register with NICK and USER first\r\n", 50, 0);
         return;
     }
 
@@ -61,7 +61,11 @@ void CommandHandler::handleCommand(int clientSocket, const std::string &command)
         std::string username, mode, unused, realname;
         iss >> username >> mode >> unused;
         std::getline(iss, realname);
-        if (!realname.empty() && realname[0] == ':') realname.erase(0, 1);
+        realname.erase(0, realname.find_first_not_of(" \t"));
+        if (!realname.empty() && realname[0] == ':') {
+            realname.erase(0, 1);
+        }
+        realname.erase(0, realname.find_first_not_of(" \t"));
         server.handleUser(clientSocket, username, realname);
     } else if (cmd == "JOIN") {
         std::string channel;

@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/10 17:33:54 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/11 22:46:34 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -52,9 +52,7 @@ Server::Server(int port, std::string password)
         perror("Erreur listen()");
         exit(EXIT_FAILURE);
     }
-
-    std::cout << "🔵 Serveur IRC en écoute sur le port " << port << std::endl;
-
+    
     // Ajout du socket serveur à poll()
     struct pollfd serverPollFd;
     serverPollFd.fd = serverSocket;
@@ -232,27 +230,37 @@ void Server::handleClientMessage(int clientSocket) {
  * @param clientSocket Le descripteur de fichier du client à supprimer.
  */
 void Server::removeClient(int clientSocket) {
-    // Vérifie si le client existe avant de tenter de le supprimer
-    if (clients.find(clientSocket) == clients.end()) {
-        return;
+    if (clients.find(clientSocket) == clients.end()) return;
+
+    Client *client = clients[clientSocket];
+
+    if (!client->getNickname().empty()) {
+        std::string quitMsg = ":" + client->getNickname() + "!" + client->getUsername()
+                            + "@localhost QUIT :Client disconnected\r\n";
+
+        // Informe tous les canaux auxquels appartient ce client
+        for (std::map<std::string, Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
+            if (it->second->isClientInChannel(clientSocket)) {
+                it->second->broadcast(quitMsg, clientSocket);
+                it->second->removeClient(clientSocket);
+            }
+        }
     }
 
-    std::cout << std::endl;
-    std::cout << "🔴 Client déconnecté." << std::endl;
     close(clientSocket);
-
-    // Supprimer le client en toute sécurité
-    delete clients[clientSocket];  
+    delete client;  
     clients.erase(clientSocket);
 
-    // Retirer de pollFds
     for (size_t i = 0; i < pollFds.size(); ++i) {
         if (pollFds[i].fd == clientSocket) {
             pollFds.erase(pollFds.begin() + i);
             break;
         }
     }
+
+    std::cout << "🔴 Client déconnecté proprement." << std::endl;
 }
+
 
 
 /**
@@ -272,19 +280,19 @@ void Server::handlePass(int clientSocket, const std::string& password) {
     }
 
     if (clients[clientSocket]->isAuthenticated()) {
-        send(clientSocket, "ERROR :Already registered\r\n", 27, 0);
+        send(clientSocket, "ERROR :Already registered\r\n", 26, 0);
         return;
     }
 
     // Vérifier si le mot de passe est correct
     if (password != this->password) {
-        send(clientSocket, "ERROR :Incorrect password\r\n", 30, 0);
+        send(clientSocket, "ERROR :Incorrect password\r\n", 28, 0);
         removeClient(clientSocket);
         return;
     }
 
     clients[clientSocket]->authenticate();
-    send(clientSocket, "✅ OK :Password accepted\r\n", 28, 0);
+    send(clientSocket, "    OK :Password accepted\r\n", 27, 0);
 }
 
 
@@ -308,7 +316,7 @@ void Server::handleNick(int clientSocket, const std::string& nickname) {
     }
 
     clients[clientSocket]->setNickname(nickname);
-    std::string response = "OK :Nickname set to " + nickname + "\r\n";
+    std::string response = "    OK :Nickname set to " + nickname + "\r\n";
     send(clientSocket, response.c_str(), response.size(), 0);
 }
 
@@ -329,12 +337,29 @@ void Server::handleUser(int clientSocket, const std::string& username, const std
         return;
     }
 
+    // Vérification stricte des paramètres USER
+    if (username.empty() 
+        || username == "0" 
+        || username == "*" 
+        || username.find_first_not_of(" \t") == std::string::npos
+        || realname.empty()
+        || realname.find_first_not_of(" \t") == std::string::npos) {
+
+        const char* errorMsg = "ERROR :Invalid USER parameters\r\n";
+        send(clientSocket, errorMsg, strlen(errorMsg), 0);
+        return;
+    }
+
     clients[clientSocket]->setUsername(username);
     clients[clientSocket]->setRealname(realname);
 
-    std::string response = "OK :Username and realname set\r\n";
+    std::string response = "     OK :User " + clients[clientSocket]->getNickname()
+                         + " set user name to : " + username
+                         + " and real name to : " + realname + "\r\n";
+
     send(clientSocket, response.c_str(), response.size(), 0);
 }
+
 
 /**
  * @brief Gère la commande JOIN pour qu'un client rejoigne un channel.
@@ -397,7 +422,7 @@ void Server::handlePart(int clientSocket, const std::string& channelName) {
 
     Channel *channel = channels[channelName];
     if (!channel->isClientInChannel(clientSocket)) {
-        send(clientSocket, "ERROR :You're not in this channel\r\n", 36, 0);
+        send(clientSocket, "ERROR :You're not in this channel\r\n", 34, 0);
         return;
     }
 
