@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/12 00:29:31 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/17 12:02:10 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -231,14 +231,7 @@ void Server::handleNewConnection() {
 }
 
 /**
- * @brief Déconnecte et supprime un client du serveur.
- *
- * - Ferme le socket du client pour libérer la ressource.
- * - Supprime l'objet `Client` correspondant et le retire de la liste des clients connectés.
- * - Supprime le client de la liste des sockets surveillés par `poll()`.
- * - Affiche un message indiquant la déconnexion du client.
- *
- * @param clientSocket Le descripteur de fichier du client à supprimer.
+ * @brief Supprime un client du serveur.
  */
 void Server::removeClient(int clientSocket) {
     if (clients.find(clientSocket) == clients.end()) return;
@@ -246,30 +239,33 @@ void Server::removeClient(int clientSocket) {
     Client *client = clients[clientSocket];
 
     if (!client->getNickname().empty()) {
-        std::string quitMsg = ":" + client->getNickname() + "!" + client->getUsername()
-                            + "@localhost QUIT :Client disconnected\r\n";
+        std::string quitMsg = ":" + client->getNickname() + "!" + client->getUsername() +
+                            "@localhost QUIT :Client disconnected\r\n";
 
         // Informe tous les canaux auxquels appartient ce client
         for (std::map<std::string, Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
-            if (it->second->isClientInChannel(clientSocket)) {
-                it->second->broadcast(quitMsg, clientSocket);
-                it->second->removeClient(clientSocket);
+            Channel* channel = it->second;
+            if (channel->isClientInChannel(clientSocket)) {
+                channel->broadcast(quitMsg, clientSocket);
+                channel->removeClient(clientSocket);
+
+                // Retirer l'utilisateur des opérateurs s'il en fait partie
+                if (channel->isOperator(clientSocket)) {
+                    channel->removeOperator(clientSocket);
+                    if (!channel->isEmpty()) {
+                        int newOp = *channel->getClients().begin();
+                        channel->addOperator(newOp);
+                    }
+                }
             }
         }
     }
 
     close(clientSocket);
-    delete client;  
+    delete clients[clientSocket];
     clients.erase(clientSocket);
 
-    for (size_t i = 0; i < pollFds.size(); ++i) {
-        if (pollFds[i].fd == clientSocket) {
-            pollFds.erase(pollFds.begin() + i);
-            break;
-        }
-    }
-
-    std::cout << "🔴 Client déconnecté proprement." << std::endl;
+    std::cout << "🚪 Client " << clientSocket << " supprimé du serveur.\n";
 }
 
 /* -------------------------------------------------------------------------- */
@@ -404,10 +400,6 @@ void Server::handlePass(int clientSocket, const std::string& password) {
     send(clientSocket, "    OK :Password accepted\r\n", 27, 0);
 }
 
-
-
-
-
 /**
  * @brief Gère la commande NICK pour définir le pseudo du client.
  *
@@ -480,31 +472,52 @@ void Server::handleUser(int clientSocket, const std::string& username, const std
 }
 
 /**
- * @brief Gère la commande JOIN pour qu'un client rejoigne un channel.
- *
- * - Vérifie si le channel existe déjà ou le crée.
- * - Ajoute le client à la liste des membres du channel.
- * - Informe les autres membres de la présence du nouveau client.
- *
- * @param clientSocket Le descripteur du client.
- * @param channelName Le nom du channel à rejoindre.
+ * @brief Gère la commande JOIN pour qu'un client rejoigne un canal.
  */
-void Server::handleJoin(int clientSocket, const std::string& channelName) {
+void Server::handleJoin(int clientSocket, const std::string& channelName, const std::string& password) {
     if (channelName.empty()) {
-        send(clientSocket, "ERROR :No channel name provided\r\n", 33, 0);
+        send(clientSocket, ":irc.42server.com 461 JOIN :Not enough parameters\r\n", 50, 0);
         return;
     }
-
     if (channels.find(channelName) == channels.end()) {
         channels[channelName] = new Channel(channelName);
     }
-
-    Channel *channel = channels[channelName];
+    Channel* channel = channels[channelName];
+    
+    // Vérifier si le canal est en mode invitation uniquement
+    if (channel->getInviteOnly() && !channel->isInvited(clientSocket)) {
+        std::string errorMsg = ":irc.42server.com 473 " + clients[clientSocket]->getNickname() + " " + channelName + " :Cannot join channel (+i) - Invite only\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        return;
+    }
+    
+    // Vérifier si le canal est protégé par un mot de passe
+    if (!channel->getPassword().empty() && channel->getPassword() != password) {
+        std::string errorMsg = ":irc.42server.com 475 " + clients[clientSocket]->getNickname() + " " + channelName + " :Cannot join channel (+k) - Incorrect password\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        return;
+    }
+    
+    // Si le client est invité, il est autorisé à entrer et retiré de la liste d'invitations
+    if (channel->isInvited(clientSocket)) {
+        channel->removeInvitation(clientSocket);
+        // Informer l'utilisateur qu'il a été invité et qu'il peut rejoindre
+        std::string inviteConfirm = ":irc.42server.com 473 " + clients[clientSocket]->getNickname() + 
+        " " + channelName + " :You have been invited by " + 
+        clients[clientSocket]->getNickname() + "\r\n";
+        send(clientSocket, inviteConfirm.c_str(), inviteConfirm.length(), 0);
+    }
+    
     channel->addClient(clientSocket);
     clients[clientSocket]->setCurrentChannel(channelName);
-
+    
+    // Ajouter le premier utilisateur comme opérateur
+    if (channel->getClients().size() == 1) {
+        channel->addOperator(clientSocket);
+    }
+    
     std::string nick = clients[clientSocket]->getNickname();
-    std::string serverName = "irc.42server.com"; // Définition du serveur
+    std::string serverName = "irc.42server.com";
 
     // 1️⃣ Message JOIN
     std::string joinMsg = ":" + nick + " JOIN :" + channelName + "\r\n";
@@ -519,10 +532,10 @@ void Server::handleJoin(int clientSocket, const std::string& channelName) {
     const std::set<int>& channelClients = channel->getClients();
     for (std::set<int>::iterator it = channelClients.begin(); it != channelClients.end(); ++it) {
         if (it != channelClients.begin()) {
-            userList += " ";  // Ajoute un espace uniquement entre les pseudos
+            userList += " ";
         }
         userList += clients[*it]->getNickname();
-    }    
+    }
     userList += "\r\n";
     send(clientSocket, userList.c_str(), userList.size(), 0);
 
@@ -532,26 +545,19 @@ void Server::handleJoin(int clientSocket, const std::string& channelName) {
 
     // Log
     std::cout << "✅ [" << nick << "] a rejoint le canal " << channelName << std::endl;
+    std::cout << std::endl;
 }
 
 
 /**
- * @brief Gère la commande PART pour qu'un client quitte un channel.
- *
- * - Vérifie si le client est dans le channel.
- * - Le retire du channel et en informe les autres membres.
- * - Si le channel est vide, il est supprimé.
- *
- * @param clientSocket Le descripteur du client.
- * @param channelName Le nom du channel à quitter.
+ * @brief Gère la commande PART pour qu'un client quitte un canal.
  */
 void Server::handlePart(int clientSocket, const std::string& channelName) {
     if (channels.find(channelName) == channels.end()) {
         send(clientSocket, "ERROR :No such channel\r\n", 24, 0);
         return;
     }
-
-    Channel *channel = channels[channelName];
+    Channel* channel = channels[channelName];
     if (!channel->isClientInChannel(clientSocket)) {
         send(clientSocket, "ERROR :You're not in this channel\r\n", 34, 0);
         return;
@@ -568,9 +574,17 @@ void Server::handlePart(int clientSocket, const std::string& channelName) {
     }
 
     channel->broadcast(partMsg, clientSocket);
-
     channel->removeClient(clientSocket);
     clients[clientSocket]->setCurrentChannel("");
+
+    // Vérifier si l'utilisateur était un opérateur et réassigner
+    if (channel->isOperator(clientSocket)) {
+        channel->removeOperator(clientSocket);
+        if (!channel->isEmpty()) {
+            int newOp = *channel->getClients().begin();
+            channel->addOperator(newOp);
+        }
+    }
 
     std::cout << "✅ Client " << clients[clientSocket]->getNickname() << " a quitté " << channelName << std::endl;
 
@@ -580,6 +594,9 @@ void Server::handlePart(int clientSocket, const std::string& channelName) {
     }
 }
 
+/**
+ * @brief Gère la commande QUIT lorsqu'un utilisateur quitte le serveur.
+ */
 void Server::handleQuit(int clientSocket, const std::string& quitMessage) {
     if (clients.find(clientSocket) == clients.end()) {
         return; // Le client n'existe pas (déjà supprimé)
@@ -592,8 +609,18 @@ void Server::handleQuit(int clientSocket, const std::string& quitMessage) {
     // 🔹 Informer le canal où était le client (si applicable)
     std::string currentChannel = client->getCurrentChannel();
     if (!currentChannel.empty() && channels.find(currentChannel) != channels.end()) {
-        channels[currentChannel]->broadcast(fullQuitMessage, clientSocket);
-        channels[currentChannel]->removeClient(clientSocket);
+        Channel* channel = channels[currentChannel];
+        channel->broadcast(fullQuitMessage, clientSocket);
+        channel->removeClient(clientSocket);
+        
+        // Vérifier si un opérateur quitte et réassigner
+        if (channel->isOperator(clientSocket)) {
+            channel->removeOperator(clientSocket);
+            if (!channel->isEmpty()) {
+                int newOp = *channel->getClients().begin();
+                channel->addOperator(newOp);
+            }
+        }
     }
 
     // 🔹 Fermer la connexion
@@ -607,6 +634,7 @@ void Server::handleQuit(int clientSocket, const std::string& quitMessage) {
     std::cout << "🚪 [" << nick << "] s'est déconnecté proprement.\n";
 }
 
+
 void Server::handleList(int clientSocket) {
     std::string listMsg = "Active channels:\r\n";
     for (std::map<std::string, Channel*>::iterator it = channels.begin(); it != channels.end(); ++it) {
@@ -614,6 +642,184 @@ void Server::handleList(int clientSocket) {
     }
     send(clientSocket, listMsg.c_str(), listMsg.length(), 0);
 }
+
+/**
+ * @brief Gère la commande KICK pour éjecter un utilisateur d'un channel.
+ */
+void Server::handleKick(int clientSocket, const std::string& channelName, const std::string& targetNick) {
+    if (channels.find(channelName) == channels.end()) {
+        send(clientSocket, "ERROR :No such channel\r\n", 24, 0);
+        return;
+    }
+    Channel* channel = channels[channelName];
+    if (!channel->isOperator(clientSocket)) {
+        send(clientSocket, "ERROR :You're not a channel operator\r\n", 38, 0);
+        return;
+    }
+    int targetSocket = getClientSocketByNickname(targetNick);
+    if (targetSocket == -1 || !channel->isClientInChannel(targetSocket)) {
+        send(clientSocket, "ERROR :User not in channel\r\n", 28, 0);
+        return;
+    }
+    channel->removeClient(targetSocket);
+    std::string kickMessage = ":" + clients[clientSocket]->getNickname() + " KICK " + channelName + " " + targetNick + "\r\n";
+    channel->broadcast(kickMessage, -1);
+}
+
+/**
+ * @brief Gère la commande INVITE pour inviter un utilisateur dans un channel.
+ */
+void Server::handleInvite(int clientSocket, const std::string& targetNick, const std::string& channelName) {
+    if (channels.find(channelName) == channels.end()) {
+        std::string errorMsg = ":irc.42server.com 403 " + clients[clientSocket]->getNickname() + " " + channelName + " :No such channel\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        return;
+    }
+
+    Channel* channel = channels[channelName];
+
+    // Vérifier si l'utilisateur est dans le canal
+    if (!channel->isClientInChannel(clientSocket)) {
+        std::string errorMsg = ":irc.42server.com 442 " + clients[clientSocket]->getNickname() + " " + channelName + " :You're not on that channel\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        return;
+    }
+
+    // Vérifier si l'utilisateur est opérateur du canal
+    if (!channel->isOperator(clientSocket)) {
+        std::string errorMsg = ":irc.42server.com 482 " + clients[clientSocket]->getNickname() + " " + channelName + " :You're not a channel operator\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        return;
+    }
+
+    // Vérifier si la cible existe
+    int targetSocket = getClientSocketByNickname(targetNick);
+    if (targetSocket == -1) {
+        std::string errorMsg = ":irc.42server.com 401 " + clients[clientSocket]->getNickname() + " " + targetNick + " :No such nick\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        return;
+    }
+
+    // Ajouter l'utilisateur à la liste des invités du canal
+    channel->inviteClient(targetSocket);
+
+    // Envoyer la confirmation au client émetteur
+    std::string inviteMsg = ":irc.42server.com 341 " + clients[clientSocket]->getNickname() + " " + targetNick + " " + channelName + "\r\n";
+    send(clientSocket, inviteMsg.c_str(), inviteMsg.length(), 0);
+
+    // Informer la cible qu'il a été invité
+    std::string noticeMsg = ":" + clients[clientSocket]->getNickname() + " INVITE " + targetNick + " " + channelName + "\r\n";
+    send(targetSocket, noticeMsg.c_str(), noticeMsg.length(), 0);
+}
+
+
+/**
+ * @brief Gère la commande TOPIC pour modifier ou afficher le sujet d'un channel.
+ */
+void Server::handleTopic(int clientSocket, const std::string& channelName, const std::string& topic) {
+    if (channels.find(channelName) == channels.end()) {
+        send(clientSocket, "ERROR :No such channel\r\n", 24, 0);
+        return;
+    }
+    Channel* channel = channels[channelName];
+    if (topic.empty()) {
+        std::string topicResponse = ":" + channelName + " :Current topic: " + channel->getTopic() + "\r\n";
+        send(clientSocket, topicResponse.c_str(), topicResponse.size(), 0);
+        return;
+    }
+    if (channel->getTopicRestricted() && !channel->isOperator(clientSocket)) {
+        send(clientSocket, "ERROR :Only operators can set topic\r\n", 38, 0);
+        return;
+    }
+    channel->setTopic(topic);
+    std::string topicMessage = ":" + clients[clientSocket]->getNickname() + " TOPIC " + channelName + " :" + topic + "\r\n";
+    channel->broadcast(topicMessage, -1);
+}
+
+/**
+ * @brief Gère la commande MODE pour changer les paramètres d'un channel.
+ */
+void Server::handleMode(int clientSocket, const std::string& channelName, const std::string& mode, const std::string& param) {
+    if (channels.find(channelName) == channels.end()) {
+        std::string errorMsg = ":irc.42server.com 403 " + clients[clientSocket]->getNickname() + " " + channelName + " :No such channel\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        return;
+    }
+    Channel* channel = channels[channelName];
+
+    // Vérifier que l'utilisateur est opérateur
+    if (!channel->isOperator(clientSocket)) {
+        std::string errorMsg = ":irc.42server.com 482 " + clients[clientSocket]->getNickname() + " " + channelName + " :You're not a channel operator\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        return;
+    }
+
+    std::string response = ":" + clients[clientSocket]->getNickname() + " MODE " + channelName + " " + mode;
+
+    // Gestion des modes
+    if (mode == "+i") {
+        channel->setInviteOnly(true);
+        response += "\r\n";
+    } else if (mode == "-i") {
+        channel->setInviteOnly(false);
+        response += "\r\n";
+    } else if (mode == "+t") {
+        channel->setTopicRestricted(true);
+        response += "\r\n";
+    } else if (mode == "-t") {
+        channel->setTopicRestricted(false);
+        response += "\r\n";
+    } else if (mode == "+k") {
+        if (param.empty()) {
+            std::string errorMsg = ":irc.42server.com 461 " + clients[clientSocket]->getNickname() + " MODE :Not enough parameters\r\n";
+            send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+            return;
+        }
+        channel->setPassword(param);
+        response += " " + param + "\r\n";
+    } else if (mode == "-k") {
+        channel->setPassword("");
+        response += "\r\n";
+    } else if (mode == "+o") {
+        int targetSocket = getClientSocketByNickname(param);
+        if (targetSocket == -1 || !channel->isClientInChannel(targetSocket)) {
+            std::string errorMsg = ":irc.42server.com 441 " + clients[clientSocket]->getNickname() + " " + param + " " + channelName + " :They aren't on that channel\r\n";
+            send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+            return;
+        }
+        channel->addOperator(targetSocket);
+        response += " " + param + "\r\n";
+    } else if (mode == "-o") {
+        int targetSocket = getClientSocketByNickname(param);
+        if (targetSocket == -1 || !channel->isClientInChannel(targetSocket)) {
+            std::string errorMsg = ":irc.42server.com 441 " + clients[clientSocket]->getNickname() + " " + param + " " + channelName + " :They aren't on that channel\r\n";
+            send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+            return;
+        }
+        channel->removeOperator(targetSocket);
+        response += " " + param + "\r\n";
+    } else if (mode == "+l") {
+        if (param.empty() || atoi(param.c_str()) <= 0) {
+            std::string errorMsg = ":irc.42server.com 461 " + clients[clientSocket]->getNickname() + " MODE :Invalid user limit\r\n";
+            send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+            return;
+        }
+        channel->setUserLimit(atoi(param.c_str()));
+        response += " " + param + "\r\n";
+    } else if (mode == "-l") {
+        channel->setUserLimit(0);
+        response += "\r\n";
+    } else {
+        std::string errorMsg = ":irc.42server.com 472 " + clients[clientSocket]->getNickname() + " " + mode + " :is unknown mode char to me\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        return;
+    }
+
+    // Diffuser le changement de mode à tous les clients du canal
+    channel->broadcast(response, -1);
+    std::cout << "🔹 Mode appliqué : " << mode << " avec paramètre : " << param << " sur " << channelName << std::endl;
+}
+
 
 
 /* -------------------------------------------------------------------------- */

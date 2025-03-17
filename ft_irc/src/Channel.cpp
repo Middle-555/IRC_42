@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/10 15:49:43 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/11 23:24:22 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/17 11:56:16 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,7 +14,8 @@
 #include <sys/socket.h>
 #include <iostream>
 
-Channel::Channel(const std::string& channelName) : name(channelName) {}
+Channel::Channel(const std::string& channelName)
+    : name(channelName), userLimit(0), inviteOnly(false), topicRestricted(false) {}
 
 void Channel::addClient(int clientSocket) {
     clients.insert(clientSocket);
@@ -43,3 +44,71 @@ bool Channel::isEmpty() const {
 const std::set<int>& Channel::getClients() const {
     return clients;
 }
+
+// Gestion des opérateurs
+void Channel::addOperator(int clientSocket) {
+    operators.insert(clientSocket);
+}
+
+void Channel::removeOperator(int clientSocket) {
+    operators.erase(clientSocket);
+}
+
+bool Channel::isOperator(int clientSocket) const {
+    return operators.find(clientSocket) != operators.end();
+}
+
+// Gestion des modes
+void Channel::setInviteOnly(bool state) {
+    inviteOnly = state;
+}
+
+bool Channel::getInviteOnly() const {
+    return inviteOnly;
+}
+
+void Channel::setTopicRestricted(bool state) {
+    topicRestricted = state;
+}
+
+bool Channel::getTopicRestricted() const {
+    return topicRestricted;
+}
+
+void Channel::setPassword(const std::string& pass) {
+    password = pass;
+}
+
+std::string Channel::getPassword() const {
+    return password;
+}
+
+void Channel::setUserLimit(int limit) {
+    userLimit = limit;
+}
+
+int Channel::getUserLimit() const {
+    return userLimit;
+}
+
+void Channel::setTopic(const std::string& newTopic) {
+    topic = newTopic;
+}
+
+std::string Channel::getTopic() const {
+    return topic;
+}
+
+bool Channel::isInvited(int clientSocket) const {
+    return (invitedClients.find(clientSocket) != invitedClients.end());
+}
+
+
+void Channel::inviteClient(int clientSocket) {
+    invitedClients.insert(clientSocket);
+}
+
+void Channel::removeInvitation(int clientSocket) {
+    invitedClients.erase(clientSocket);
+}
+

@@ -1,12 +1,12 @@
 	BIND 1
 	
-	server :
-
+# Lancement du serveur avec Valgrind pour détecter les fuites mémoire
+server :
 
 valgrind --leak-check=full --show-leak-kinds=all ./irc 6667 mypassword
 
-
-	client 1: 
+# Connexion du premier client (user1)
+client 1:
 
 nc 127.0.0.1 6667
 PASS mypassword
@@ -15,16 +15,49 @@ USER u1 0 * :User One
 JOIN #test
 PRIVMSG user2 :test
 PRIVMSG #test :Salut à tous !
+MODE #test +o user1  									# user1 devient opérateur
+TOPIC #test :Bienvenue sur le canal test !
+MODE #test +t        									# Seuls les opérateurs peuvent modifier le topic
+MODE #test +k secret 									# Définition d'un mot de passe pour le canal
+MODE #test +i        									# Passage du canal en mode invitation uniquement
+MODE #test +l 2      									# Limite du canal à 2 utilisateurs
+INVITE user3 #test   									# Invitation d'un troisième utilisateur (car canal en mode +i)
 
-	client 2:
+# Connexion du deuxième client (user2)
+client 2:
 
 nc 127.0.0.1 6667
 PASS mypassword
 NICK user2
 USER u2 0 * :User Two
 JOIN #test
+PRIVMSG #test :Salut tout le monde !
+KICK #test user2 :Expulsion de user2 du canal #test
+
+# Connexion d'un troisième client invité (user3)
+client 3:
+
+nc 127.0.0.1 6667
+PASS mypassword
+NICK user3
+USER u3 0 * :User Three
+JOIN #test secret  										# user3 doit fournir le mot de passe pour rejoindre
+PRIVMSG #test :Merci pour l'invitation !
+
+
+# Connexion d'un quatrième client invité (user4)
+client 4:
+
+nc 127.0.0.1 6667
+PASS mypassword
+NICK user4
+USER u4 0 * :User Four
+
+
 
 <------------------------------------------------------------------------------------->
+
+
 	BIND 2
 		
 	server :

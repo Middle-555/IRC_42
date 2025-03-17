@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:07:11 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/12 00:26:01 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/17 11:42:16 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -39,52 +39,56 @@ class Client;
 class CommandHandler;
 
 class Server {
-private:
-    bool                            running;            // Server running info
-    int                             serverSocket;       // Socket du serveur
-    int                             port;               // Port d'écoute
-    std::string                     password;           // Mot de passe du serveur
-    std::vector<struct pollfd>      pollFds;            // Poll pour gérer les connexions
-    std::map<int, Client*>          clients;            // Liste des clients connectés (clé = socket)
-    std::map<std::string, Channel*> channels;           // Map des channels (clé = nom du channel)
-    CommandHandler                  commandHandler;     // Gestionnaire de commandes
-
+    private:
+        bool                            running;            // Server running info
+        int                             serverSocket;       // Socket du serveur
+        int                             port;               // Port d'écoute
+        std::string                     password;           // Mot de passe du serveur
+        std::vector<struct pollfd>      pollFds;            // Poll pour gérer les connexions
+        std::map<int, Client*>          clients;            // Liste des clients connectés (clé = socket)
+        std::map<std::string, Channel*> channels;           // Map des channels (clé = nom du channel)
+        CommandHandler                  commandHandler;     // Gestionnaire de commandes
     
-
-    /*                                Gestion des Connexions                      */
-    void    handleNewConnection();
-    void    removeClient(int clientSocket);
+        /*                                Gestion des Connexions                      */
+        void    handleNewConnection();
+        void    removeClient(int clientSocket);
+        
+        /*                                Gestion des Messages                        */
+        void    handleClientMessage(int clientSocket);
     
-    /*                                Gestion des Messages                        */
-    void    handleClientMessage(int clientSocket);
-
-public:
-    std::string     serverName;
-
-    /*                                Constructeur / Destructeur                  */
-    Server(int port, std::string password);
-    ~Server();
+    public:
+        std::string     serverName;
     
-    /*                                Gestion du Serveur                          */
-    void    run();
-    void    shutdownServer();
-
-    /*                                Gestion des Messages                        */
-    void    handlePrivMsg(int clientSocket, const std::string& target, const std::string& message);
-
-    /*                                Gestion des Commandes IRC                   */
-    void    handlePass(int clientSocket, const std::string& password);
-    void    handleNick(int clientSocket, const std::string& nickname);
-    void    handleUser(int clientSocket, const std::string& username, const std::string& realname);
-    void    handleJoin(int clientSocket, const std::string& channelName);
-    void    handlePart(int clientSocket, const std::string& channelName);
-    void    handleList(int clientSocket);
-    void    handleQuit(int clientSocket, const std::string& quitMessage);
-
-    /*                                Utilitaires                                 */
-    int     getClientSocketByNickname(const std::string& nickname) const;
-    std::map<int, Client*>& getClients();
-};
+        /*                                Constructeur / Destructeur                  */
+        Server(int port, std::string password);
+        ~Server();
+        
+        /*                                Gestion du Serveur                          */
+        void    run();
+        void    shutdownServer();
+    
+        /*                                Gestion des Messages                        */
+        void    handlePrivMsg(int clientSocket, const std::string& target, const std::string& message);
+    
+        /*                                Gestion des Commandes IRC                   */
+        void    handlePass(int clientSocket, const std::string& password);
+        void    handleNick(int clientSocket, const std::string& nickname);
+        void    handleUser(int clientSocket, const std::string& username, const std::string& realname);
+        void    handleJoin(int clientSocket, const std::string& channelName, const std::string& password);
+        void    handlePart(int clientSocket, const std::string& channelName);
+        void    handleList(int clientSocket);
+        void    handleQuit(int clientSocket, const std::string& quitMessage);
+        
+        /*                                Gestion des Commandes Opérateurs            */
+        void    handleKick(int clientSocket, const std::string& channelName, const std::string& targetNick);
+        void    handleInvite(int clientSocket, const std::string& channelName, const std::string& targetNick);
+        void    handleTopic(int clientSocket, const std::string& channelName, const std::string& topic);
+        void    handleMode(int clientSocket, const std::string& channelName, const std::string& mode, const std::string& param);
+        
+        /*                                Utilitaires                                 */
+        int     getClientSocketByNickname(const std::string& nickname) const;
+        std::map<int, Client*>& getClients();
+    };
 
 
 #endif // SERVER_HPP
