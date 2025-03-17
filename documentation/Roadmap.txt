@@ -250,3 +250,35 @@ valgrind --leak-check=full --show-leak-kinds=all ./irc 6667 mypassword
 
 Doc pour les liens client IRC 
 https://www.rfc-editor.org/rfc/rfc2812
+
+
+
+
+
+<------------------------------------------------------------------------------------------------------------->
+
+
+
+
+
+Probleme d'operateur avec HexChat.
+Probleme de messages "::" a check.
+Probleme de connection avec HexChat (il envois toutes les infos d'un coup mais le serveur les prend pas en compte).
+commande PING PONG
+Ajouter une sauvegarde du ban (ban list par channel)
+probleme de commande HexChat en majuscules
+
+exemple des message coté client 
+
+PASS salut
+NICK nael
+: NICK nael
+USER user l l :r
+:localhost 001 nael :Welcome to the Internet Relay Network nael!user@localhost
+JOIN #test
+:nael!user@localhost JOIN :#test
+:localhost 332 nael #test :default
+:localhost 353 nael = #test :@nael
+:localhost 366 nael #test :End of /NAMES list
+:naelf!naelf@localhost JOIN :#test
+:naelf!naelf@localhost PRIVMSG #test
