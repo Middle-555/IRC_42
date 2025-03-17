@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   CommandHandler.hpp                                 :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
+/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/10 15:41:17 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/17 11:25:15 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/17 15:57:34 by kpourcel         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,16 +20,21 @@ class Server;
 class CommandHandler {
 private:
     Server& server;
-
+    void handlePassCmd(int clientSocket, std::istringstream &iss);
+    void handleNickCmd(int clientSocket, std::istringstream &iss);
+    void handleUserCmd(int clientSocket, std::istringstream &iss);
+    void handleJoinCmd(int clientSocket, std::istringstream &iss);
+    void handleQuitCmd(int clientSocket, std::istringstream &iss);
+    void handlePartCmd(int clientSocket, std::istringstream &iss);
+    void handleListCmd(int clientSocket);
+    void handlePrivMsgCmd(int clientSocket, std::istringstream &iss);
+    void handleKickCmd(int clientSocket, std::istringstream &iss);
+    void handleInviteCmd(int clientSocket, std::istringstream &iss);
+    void handleTopicCmd(int clientSocket, std::istringstream &iss);
+    void handleModeCmd(int clientSocket, std::istringstream &iss);
 public:
     CommandHandler(Server& srv);
     void handleCommand(int clientSocket, const std::string& command);
-    
-    // Ajout des nouvelles commandes
-    void handleKick(int clientSocket, const std::string& channelName, const std::string& targetNick);
-    void handleInvite(int clientSocket, const std::string& channelName, const std::string& targetNick);
-    void handleTopic(int clientSocket, const std::string& channelName, const std::string& topic);
-    void handleMode(int clientSocket, const std::string& channelName, const std::string& mode, const std::string& param);
 };
 
 #endif
