@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   CommandHandler.cpp                                 :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
+/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 23:11:20 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/18 06:47:34 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/18 16:15:48 by kpourcel         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -59,7 +59,7 @@ void CommandHandler::handleCommand(int clientSocket, const std::string &command)
         Client* client = server.getClients()[clientSocket];
 
         if (!client->isFullyRegistered() && cmd != "NICK" && cmd != "USER" && cmd != "PASS") {
-            send(clientSocket, ":irc.42server.com 451 * :You must register with NICK and USER first\r\n", 64, 0);
+            send(clientSocket, ":irc.42server.com 451 * :You must register with NICK and USER first\r\n", 70, 0);
             return;
         }
 
