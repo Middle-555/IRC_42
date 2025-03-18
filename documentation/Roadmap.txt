@@ -258,15 +258,16 @@ https://www.rfc-editor.org/rfc/rfc2812
 <------------------------------------------------------------------------------------------------------------->
 
 
-
-
-
-Probleme d'operateur avec HexChat.
-Probleme de messages "::" a check.
-Probleme de connection avec HexChat (il envois toutes les infos d'un coup mais le serveur les prend pas en compte).
-commande PING PONG
 Ajouter une sauvegarde du ban (ban list par channel)
-probleme de commande HexChat en majuscules
+FIX la regle de limite des participants.
+Check le CTRL + D
+
+
+
+
+
+
+
 
 exemple des message coté client
 

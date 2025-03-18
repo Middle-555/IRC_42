@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Channel.hpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
+/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/10 15:50:02 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/17 11:56:03 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/18 16:46:03 by kpourcel         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -63,7 +63,6 @@ public:
     void inviteClient(int clientSocket);
     bool isInvited(int clientSocket) const;
     void removeInvitation(int clientSocket);
-
 
 };
 
