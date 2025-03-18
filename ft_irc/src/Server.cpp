@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/18 06:50:41 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/18 06:57:41 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -318,8 +318,9 @@ void Server::handlePrivMsg(int clientSocket, const std::string& target, const st
 
     // 📌 Suppression correcte du ":" en début de message uniquement si présent
     std::string cleanMessage = message;
-    if (!cleanMessage.empty() && cleanMessage[0] == ':') {
-        cleanMessage = cleanMessage.substr(1);
+    size_t firstCharPos = cleanMessage.find_first_not_of(" \t\r\n");
+    if (firstCharPos != std::string::npos && cleanMessage[firstCharPos] == ':') {
+        cleanMessage = cleanMessage.substr(firstCharPos + 1);
     }
 
     std::string fullMessage = ":" + clients[clientSocket]->getNickname() +
@@ -344,7 +345,7 @@ void Server::handlePrivMsg(int clientSocket, const std::string& target, const st
 
     // 📌 Si aucun utilisateur trouvé, renvoyer une erreur
     if (!userFound) {
-        std::string errorMsg = "ERROR :No such nick/channel\r\n";
+        std::string errorMsg = ":irc.42server.com 401 " + clients[clientSocket]->getNickname() + " " + target + " :No such nick/channel\r\n";
         send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
     }
 }
