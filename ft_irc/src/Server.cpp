@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/18 06:40:06 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/18 06:50:41 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -716,15 +716,20 @@ void Server::handleTopic(int clientSocket, const std::string& channelName, const
     // 🔹 Si aucun topic n'est donné, retourner le topic actuel
     if (topic.empty()) {
         std::string currentTopic = channel->getTopic();
+        std::string response;
+        
         if (currentTopic.empty()) {
             // Pas de topic défini
-            std::string topicResponse = ":irc.42server.com 331 " + clients[clientSocket]->getNickname() + " " + channelName + " :No topic is set\r\n";
-            send(clientSocket, topicResponse.c_str(), topicResponse.size(), 0);
+            response = ":irc.42server.com 331 " + clients[clientSocket]->getNickname() + 
+                       " " + channelName + " :No topic is set\r\n";
         } else {
             // Retourner le topic actuel
-            std::string topicResponse = ":irc.42server.com 332 " + clients[clientSocket]->getNickname() + " " + channelName + " :" + currentTopic + "\r\n";
-            send(clientSocket, topicResponse.c_str(), topicResponse.size(), 0);
+            response = ":irc.42server.com 332 " + clients[clientSocket]->getNickname() + 
+                       " " + channelName + " :" + currentTopic + "\r\n";
         }
+    
+        std::cout << "📩 Envoi du topic à " << clients[clientSocket]->getNickname() << " : " << response;
+        send(clientSocket, response.c_str(), response.size(), 0);
         return;
     }
     
@@ -739,9 +744,15 @@ void Server::handleTopic(int clientSocket, const std::string& channelName, const
     }
 
     // 🔹 Appliquer la modification du topic
-    channel->setTopic(topic);
-    std::string topicMessage = ":" + clients[clientSocket]->getNickname() + "!"+ clients[clientSocket]->getUsername() +"@localhost TOPIC " + channelName + " :" + topic + "\r\n";
+    // Nettoyer le topic si un ":" est présent au début
+    std::string cleanTopic = topic;
+    if (!cleanTopic.empty() && cleanTopic[0] == ':') {
+        cleanTopic.erase(0, 1);
+    }
+
+    std::string topicMessage = ":" + clients[clientSocket]->getNickname() + "!" + clients[clientSocket]->getUsername() + "@localhost TOPIC " + channelName + " :" + cleanTopic + "\r\n";
     channel->broadcast(topicMessage, -1);
+
 }
 
 

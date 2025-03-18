@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 23:11:20 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/18 06:34:09 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/18 06:47:34 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -176,23 +176,19 @@ void CommandHandler::handleInviteCmd(int clientSocket, std::istringstream &iss) 
 void CommandHandler::handleTopicCmd(int clientSocket, std::istringstream &iss) {
     std::string channel, topic;
     iss >> channel;
-
-    if (channel.empty()) {
-        std::string errorMsg = ":irc.42server.com 461 " + server.getClients()[clientSocket]->getNickname() +
-                               " TOPIC :Not enough parameters\r\n";
-        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
-        return;
-    }
-
     std::getline(iss, topic);
 
-    // 🔹 Si un topic est donné, enlever le `:` s'il est présent au début
+    // Supprimer les espaces en début de chaîne
+    topic.erase(0, topic.find_first_not_of(" \t"));
+
+    // Supprimer le ':' ajouté par HexChat au début du topic
     if (!topic.empty() && topic[0] == ':') {
         topic.erase(0, 1);
     }
 
     server.handleTopic(clientSocket, channel, topic);
 }
+
 
 
 void CommandHandler::handleModeCmd(int clientSocket, std::istringstream &iss) {
