@@ -87,6 +87,8 @@ void CommandHandler::handleCommand(int clientSocket, const std::string &command)
             handleTopicCmd(clientSocket, singleCommand);
         else if (cmd == "MODE")
             handleModeCmd(clientSocket, singleCommand);
+        else if (cmd == "PING")
+            handlePingCmd(clientSocket, singleCommand);
         else {
             std::cout << "❌ Commande inconnue : [" << cmd << "]\n";
             std::string errorMsg = ":irc.42server.com 421 " + client->getNickname() + " " + cmd + " :Unknown command\r\n";
@@ -199,4 +201,16 @@ void CommandHandler::handleModeCmd(int clientSocket, std::istringstream &iss) {
     } else {
         server.handleMode(clientSocket, channel, mode, "");
     }
+}
+
+void CommandHandler::handlePingCmd(int clientSocket, std::istringstream &iss) {
+    std::string token;
+    iss >> token;
+    
+    // If token is empty, use '*' as default
+    if (token.empty()) {
+        token = "*";
+    }
+    
+    server.handlePing(clientSocket, token);
 }

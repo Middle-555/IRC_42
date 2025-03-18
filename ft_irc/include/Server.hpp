@@ -78,6 +78,7 @@ class Server {
         void    handlePart(int clientSocket, const std::string& channelName);
         void    handleList(int clientSocket);
         void    handleQuit(int clientSocket, const std::string& quitMessage);
+        void    handlePing(int clientSocket, const std::string& token);
         
         /*                                Gestion des Commandes Opérateurs            */
         void    handleKick(int clientSocket, const std::string& channelName, const std::string& targetNick);

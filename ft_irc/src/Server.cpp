@@ -841,6 +841,21 @@ void Server::handleMode(int clientSocket, const std::string& channelName, const 
     std::cout << "🔹 Mode appliqué : " << mode << " avec paramètre : " << param << " sur " << channelName << std::endl;
 }
 
+/**
+ * @brief Gère la commande PING pour maintenir la connexion avec le client.
+ *
+ * - Reçoit un token du client avec la commande PING
+ * - Retourne une réponse PONG avec le même token
+ * - Confirme que la connexion est active
+ *
+ * @param clientSocket Le descripteur de fichier du client envoyant le PING.
+ * @param token Le token envoyé par le client, qui doit être retourné dans la réponse PONG.
+ */
+void Server::handlePing(int clientSocket, const std::string& token) {
+    std::string pongResponse = ":irc.42server.com PONG irc.42server.com :" + token + "\r\n";
+    send(clientSocket, pongResponse.c_str(), pongResponse.length(), 0);
+    std::cout << "✅ PING-PONG with token: " << token << std::endl;
+}
 
 
 /* -------------------------------------------------------------------------- */

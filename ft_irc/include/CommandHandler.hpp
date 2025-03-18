@@ -32,6 +32,7 @@ private:
     void handleInviteCmd(int clientSocket, std::istringstream &iss);
     void handleTopicCmd(int clientSocket, std::istringstream &iss);
     void handleModeCmd(int clientSocket, std::istringstream &iss);
+    void handlePingCmd(int clientSocket, std::istringstream &iss);
 public:
     CommandHandler(Server& srv);
     void handleCommand(int clientSocket, const std::string& command);
