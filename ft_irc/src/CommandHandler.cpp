@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   CommandHandler.cpp                                 :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
+/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 23:11:20 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/17 16:01:13 by kpourcel         ###   ########.fr       */
+/*   Updated: 2025/03/18 06:34:09 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -29,50 +29,69 @@ CommandHandler::CommandHandler(Server &srv) : server(srv) {}
 void CommandHandler::handleCommand(int clientSocket, const std::string &command) {
     std::istringstream iss(command);
     std::string cmd;
-    iss >> cmd;
 
-    std::cout << "📌 CommandHandler : [" << cmd << "] reçue du client " << clientSocket << std::endl;
-    std::cout << std::endl;
-
-    if (server.getClients().find(clientSocket) == server.getClients().end()) {
-        send(clientSocket, "ERROR :Client not found\r\n", 26, 0);
-        return;
+    // ✂️ Découper les commandes envoyées en un seul bloc
+    std::vector<std::string> commands;
+    std::string temp;
+    while (std::getline(iss, temp, '\n')) {  // Sépare chaque commande par '\n'
+        if (!temp.empty()) {
+            commands.push_back(temp);
+        }
     }
 
-    Client* client = server.getClients()[clientSocket];
+    // 🔄 Parcourir et exécuter chaque commande individuellement
+    for (size_t i = 0; i < commands.size(); i++) {
+        std::istringstream singleCommand(commands[i]);
+        singleCommand >> cmd;
 
-    if (!client->isFullyRegistered() && cmd != "NICK" && cmd != "USER" && cmd != "PASS") {
-        send(clientSocket, "ERROR :You must register with NICK and USER first\r\n", 50, 0);
-        return;
-    }
-    if (cmd == "PASS")
-        handlePassCmd(clientSocket, iss);
-    else if (cmd == "NICK") 
-        handleNickCmd(clientSocket, iss);
-    else if (cmd == "USER")
-        handleUserCmd(clientSocket, iss);
-    else if (cmd == "JOIN")
-        handleJoinCmd(clientSocket, iss);
-    else if (cmd == "QUIT")
-        handleQuitCmd(clientSocket, iss);
-    else if (cmd == "PART")
-        handlePartCmd(clientSocket, iss);
-    else if (cmd == "LIST")
-        handleListCmd(clientSocket);
-    else if (cmd == "PRIVMSG")
-        handlePrivMsgCmd(clientSocket, iss);
-    else if (cmd == "KICK")
-        handleKickCmd(clientSocket, iss);
-    else if (cmd == "INVITE")
-        handleInviteCmd(clientSocket, iss);
-    else if (cmd == "TOPIC")
-        handleTopicCmd(clientSocket, iss);
-    else if (cmd == "MODE")
-        handleModeCmd(clientSocket, iss);
-    else {
-        std::cout << "❌ Commande inconnue : [" << cmd << "]\n";
-        std::string errorMsg = "ERROR :Unknown command\r\n";
-        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        std::cout << "📌 CommandHandler : [" << cmd << "] reçue du client " << clientSocket << std::endl;
+
+        if (cmd == "CAP") {
+            // Ignorer CAP LS envoyé par HexChat
+            continue;
+        }
+
+        if (server.getClients().find(clientSocket) == server.getClients().end()) {
+            send(clientSocket, ":irc.42server.com 451 * :You must specify a password first\r\n", 58, 0);
+            return;
+        }
+
+        Client* client = server.getClients()[clientSocket];
+
+        if (!client->isFullyRegistered() && cmd != "NICK" && cmd != "USER" && cmd != "PASS") {
+            send(clientSocket, ":irc.42server.com 451 * :You must register with NICK and USER first\r\n", 64, 0);
+            return;
+        }
+
+        if (cmd == "PASS") 
+            handlePassCmd(clientSocket, singleCommand);
+        else if (cmd == "NICK") 
+            handleNickCmd(clientSocket, singleCommand);
+        else if (cmd == "USER")
+            handleUserCmd(clientSocket, singleCommand);
+        else if (cmd == "JOIN")
+            handleJoinCmd(clientSocket, singleCommand);
+        else if (cmd == "QUIT")
+            handleQuitCmd(clientSocket, singleCommand);
+        else if (cmd == "PART")
+            handlePartCmd(clientSocket, singleCommand);
+        else if (cmd == "LIST")
+            handleListCmd(clientSocket);
+        else if (cmd == "PRIVMSG")
+            handlePrivMsgCmd(clientSocket, singleCommand);
+        else if (cmd == "KICK")
+            handleKickCmd(clientSocket, singleCommand);
+        else if (cmd == "INVITE")
+            handleInviteCmd(clientSocket, singleCommand);
+        else if (cmd == "TOPIC")
+            handleTopicCmd(clientSocket, singleCommand);
+        else if (cmd == "MODE")
+            handleModeCmd(clientSocket, singleCommand);
+        else {
+            std::cout << "❌ Commande inconnue : [" << cmd << "]\n";
+            std::string errorMsg = ":irc.42server.com 421 " + client->getNickname() + " " + cmd + " :Unknown command\r\n";
+            send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        }
     }
 }
 
@@ -157,11 +176,24 @@ void CommandHandler::handleInviteCmd(int clientSocket, std::istringstream &iss) 
 void CommandHandler::handleTopicCmd(int clientSocket, std::istringstream &iss) {
     std::string channel, topic;
     iss >> channel;
+
+    if (channel.empty()) {
+        std::string errorMsg = ":irc.42server.com 461 " + server.getClients()[clientSocket]->getNickname() +
+                               " TOPIC :Not enough parameters\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+        return;
+    }
+
     std::getline(iss, topic);
-    if (!topic.empty() && topic[0] == ':') topic.erase(0, 1);
+
+    // 🔹 Si un topic est donné, enlever le `:` s'il est présent au début
+    if (!topic.empty() && topic[0] == ':') {
+        topic.erase(0, 1);
+    }
 
     server.handleTopic(clientSocket, channel, topic);
 }
+
 
 void CommandHandler::handleModeCmd(int clientSocket, std::istringstream &iss) {
     std::string channel, mode, param;

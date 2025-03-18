@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/17 12:02:10 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/18 06:40:06 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -194,13 +194,6 @@ void Server::handleNewConnection() {
 
     std::cout << "🟢 Nouveau client connecté : " << inet_ntoa(clientAddr.sin_addr) << " (fd: " << clientSocket << ")" << std::endl;
 
-    // ✅ Vérification du socket avant de l'ajouter à pollFds
-    if (clientSocket < 0) {
-        std::cerr << "❌ Erreur: Socket client invalide !\n";
-        return;
-    }
-
-    // ✅ Initialisation complète du pollfd
     struct pollfd clientPollFd;
     clientPollFd.fd = clientSocket;
     clientPollFd.events = POLLIN;
@@ -208,27 +201,19 @@ void Server::handleNewConnection() {
 
     pollFds.push_back(clientPollFd);
     
-    // ✅ Vérifier si l'allocation mémoire est réussie
     clients[clientSocket] = new Client(clientSocket);
     if (!clients[clientSocket]) {
         std::cerr << "❌ Erreur : Impossible d'allouer un Client pour fd " << clientSocket << std::endl;
         close(clientSocket);
         return;
     }
-    // ✅ Envoi d'un message d'accueil au client
-    std::string welcomeMessage = "Bienvenue sur le serveur IRC !\n";
-    welcomeMessage += "Veuillez entrer les informations demandées :\n";
-    welcomeMessage += "Mot de passe du serveur : ";
-
-    int bytesSent = send(clientSocket, welcomeMessage.c_str(), welcomeMessage.length(), 0);
-    if (bytesSent < 0) {
-        perror("❌ Erreur send()");
-        close(clientSocket);
-        delete clients[clientSocket];
-        clients.erase(clientSocket);
-        return;
-    }
+    
+    // Envoi d'un message d'accueil conforme au protocole IRC
+    std::string serverName = "irc.42server.com";
+    std::string welcomeMessage = ":" + serverName + " 001 * :Welcome to the Internet Relay Network\r\n";
+    send(clientSocket, welcomeMessage.c_str(), welcomeMessage.length(), 0);
 }
+
 
 /**
  * @brief Supprime un client du serveur.
@@ -385,19 +370,17 @@ void Server::handlePass(int clientSocket, const std::string& password) {
     }
 
     if (clients[clientSocket]->isAuthenticated()) {
-        send(clientSocket, "ERROR :Already registered\r\n", 26, 0);
+        send(clientSocket, ":irc.42server.com 462 * :You may not reregister\r\n", 51, 0);
         return;
     }
 
-    // Vérifier si le mot de passe est correct
     if (password != this->password) {
-        send(clientSocket, "ERROR :Incorrect password\r\n", 28, 0);
+        send(clientSocket, ":irc.42server.com 464 * :Password incorrect\r\n", 50, 0);
         removeClient(clientSocket);
         return;
     }
 
     clients[clientSocket]->authenticate();
-    send(clientSocket, "    OK :Password accepted\r\n", 27, 0);
 }
 
 /**
@@ -412,13 +395,23 @@ void Server::handlePass(int clientSocket, const std::string& password) {
  */
 void Server::handleNick(int clientSocket, const std::string& nickname) {
     if (!clients[clientSocket]->isAuthenticated()) {
-        send(clientSocket, "ERROR :You need to authenticate first\r\n", 39, 0);
+        send(clientSocket, ":irc.42server.com 451 * :You must specify a password first\r\n", 58, 0);
         return;
     }
 
+    // Vérifier si le pseudo est déjà pris
+    for (std::map<int, Client*>::iterator it = clients.begin(); it != clients.end(); ++it) {
+        if (it->second->getNickname() == nickname) {
+            std::string errorMsg = ":irc.42server.com 433 * " + nickname + " :Nickname is already in use\r\n";
+            send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
+            return;
+        }
+    }
+
     clients[clientSocket]->setNickname(nickname);
-    std::string response = "    OK :Nickname set to " + nickname + "\r\n";
-    send(clientSocket, response.c_str(), response.size(), 0);
+
+    std::string nickMsg = ":" + nickname + " NICK :" + nickname + "\r\n";
+    send(clientSocket, nickMsg.c_str(), nickMsg.length(), 0);
 }
 
 /**
@@ -434,33 +427,19 @@ void Server::handleNick(int clientSocket, const std::string& nickname) {
  */
 void Server::handleUser(int clientSocket, const std::string& username, const std::string& realname) {
     if (!clients[clientSocket]->isAuthenticated()) {
-        send(clientSocket, "ERROR :You need to authenticate first\r\n", 39, 0);
+        send(clientSocket, ":irc.42server.com 451 * :You must specify a password first\r\n", 58, 0);
         return;
     }
 
-    // Vérification stricte des paramètres USER
-    if (username.empty() 
-        || username == "0" 
-        || username == "*" 
-        || username.find_first_not_of(" \t") == std::string::npos
-        || realname.empty()
-        || realname.find_first_not_of(" \t") == std::string::npos) {
-
-        const char* errorMsg = "ERROR :Invalid USER parameters\r\n";
-        send(clientSocket, errorMsg, strlen(errorMsg), 0);
+    if (clients[clientSocket]->getUsername() != "") {
+        send(clientSocket, ":irc.42server.com 462 * :You may not reregister\r\n", 51, 0);
         return;
     }
 
     clients[clientSocket]->setUsername(username);
     clients[clientSocket]->setRealname(realname);
 
-    std::string response = "     OK :User " + clients[clientSocket]->getNickname()
-                         + " set user name to : " + username
-                         + " and real name to : " + realname + "\r\n";
-
-    send(clientSocket, response.c_str(), response.size(), 0);
-
-    // 🔹 Vérifier si le client est maintenant complètement enregistré (NICK + USER)
+    // Vérifier si le client est maintenant complètement enregistré (NICK + USER)
     if (clients[clientSocket]->isFullyRegistered()) {
         std::string welcomeMsg = ":irc.42server.com 001 " + clients[clientSocket]->getNickname() +
                                  " :Welcome to the Internet Relay Network " +
@@ -479,52 +458,51 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
         send(clientSocket, ":irc.42server.com 461 JOIN :Not enough parameters\r\n", 50, 0);
         return;
     }
-    if (channels.find(channelName) == channels.end()) {
+
+    bool isNewChannel = (channels.find(channelName) == channels.end());
+    if (isNewChannel) {
         channels[channelName] = new Channel(channelName);
     }
     Channel* channel = channels[channelName];
-    
-    // Vérifier si le canal est en mode invitation uniquement
+
+    // Vérification des permissions
     if (channel->getInviteOnly() && !channel->isInvited(clientSocket)) {
         std::string errorMsg = ":irc.42server.com 473 " + clients[clientSocket]->getNickname() + " " + channelName + " :Cannot join channel (+i) - Invite only\r\n";
         send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
         return;
     }
-    
-    // Vérifier si le canal est protégé par un mot de passe
     if (!channel->getPassword().empty() && channel->getPassword() != password) {
         std::string errorMsg = ":irc.42server.com 475 " + clients[clientSocket]->getNickname() + " " + channelName + " :Cannot join channel (+k) - Incorrect password\r\n";
         send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
         return;
     }
-    
-    // Si le client est invité, il est autorisé à entrer et retiré de la liste d'invitations
+
     if (channel->isInvited(clientSocket)) {
         channel->removeInvitation(clientSocket);
-        // Informer l'utilisateur qu'il a été invité et qu'il peut rejoindre
-        std::string inviteConfirm = ":irc.42server.com 473 " + clients[clientSocket]->getNickname() + 
-        " " + channelName + " :You have been invited by " + 
-        clients[clientSocket]->getNickname() + "\r\n";
-        send(clientSocket, inviteConfirm.c_str(), inviteConfirm.length(), 0);
     }
-    
+
     channel->addClient(clientSocket);
     clients[clientSocket]->setCurrentChannel(channelName);
-    
-    // Ajouter le premier utilisateur comme opérateur
-    if (channel->getClients().size() == 1) {
+
+    // Si c'est un nouveau canal, le premier utilisateur devient opérateur
+    if (isNewChannel) {
         channel->addOperator(clientSocket);
     }
-    
+
     std::string nick = clients[clientSocket]->getNickname();
     std::string serverName = "irc.42server.com";
 
-    // 1️⃣ Message JOIN
-    std::string joinMsg = ":" + nick + " JOIN :" + channelName + "\r\n";
+    // 1️⃣ Message JOIN (Obligatoire)
+    std::string joinMsg = ":" + nick + " JOIN " + channelName + "\r\n";
     channel->broadcast(joinMsg, -1);
 
-    // 2️⃣ Réponse 332 (Topic du channel)
-    std::string topicMsg = ":" + serverName + " 332 " + nick + " " + channelName + " :Welcome to " + channelName + "\r\n";
+    // 2️⃣ Réponse 332 (TOPIC du channel)
+    std::string topicMsg;
+    if (!channel->getTopic().empty()) {
+        topicMsg = ":" + serverName + " 332 " + nick + " " + channelName + " :" + channel->getTopic() + "\r\n";
+    } else {
+        topicMsg = ":" + serverName + " 331 " + nick + " " + channelName + " :No topic is set\r\n";
+    }
     send(clientSocket, topicMsg.c_str(), topicMsg.size(), 0);
 
     // 3️⃣ Réponse 353 (Liste des utilisateurs du channel)
@@ -534,7 +512,8 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
         if (it != channelClients.begin()) {
             userList += " ";
         }
-        userList += clients[*it]->getNickname();
+        std::string prefix = channel->isOperator(*it) ? "@" : "";
+        userList += prefix + clients[*it]->getNickname();
     }
     userList += "\r\n";
     send(clientSocket, userList.c_str(), userList.size(), 0);
@@ -543,10 +522,9 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
     std::string endOfListMsg = ":" + serverName + " 366 " + nick + " " + channelName + " :End of NAMES list\r\n";
     send(clientSocket, endOfListMsg.c_str(), endOfListMsg.size(), 0);
 
-    // Log
     std::cout << "✅ [" << nick << "] a rejoint le canal " << channelName << std::endl;
-    std::cout << std::endl;
 }
+
 
 
 /**
@@ -661,9 +639,19 @@ void Server::handleKick(int clientSocket, const std::string& channelName, const 
         send(clientSocket, "ERROR :User not in channel\r\n", 28, 0);
         return;
     }
+    
+    // Créer le message de KICK selon le format IRC
+    std::string kickerNick = clients[clientSocket]->getNickname();
+    std::string kickMessage = ":" + kickerNick + "!" + clients[clientSocket]->getUsername() + "@localhost KICK " + channelName + " " + targetNick + " :Kicked by " + kickerNick + "\r\n";
+    
+    // Envoyer le message au canal
+    channel->broadcast(kickMessage, targetSocket);
+    
+    // Envoyer le message directement à l'utilisateur kické
+    send(targetSocket, kickMessage.c_str(), kickMessage.length(), 0);
+    
+    // Retirer le client du canal
     channel->removeClient(targetSocket);
-    std::string kickMessage = ":" + clients[clientSocket]->getNickname() + " KICK " + channelName + " " + targetNick + "\r\n";
-    channel->broadcast(kickMessage, -1);
 }
 
 /**
@@ -718,23 +706,44 @@ void Server::handleInvite(int clientSocket, const std::string& targetNick, const
  */
 void Server::handleTopic(int clientSocket, const std::string& channelName, const std::string& topic) {
     if (channels.find(channelName) == channels.end()) {
-        send(clientSocket, "ERROR :No such channel\r\n", 24, 0);
+        std::string errorMsg = ":irc.42server.com 403 " + clients[clientSocket]->getNickname() + " " + channelName + " :No such channel\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
         return;
     }
+
     Channel* channel = channels[channelName];
+
+    // 🔹 Si aucun topic n'est donné, retourner le topic actuel
     if (topic.empty()) {
-        std::string topicResponse = ":" + channelName + " :Current topic: " + channel->getTopic() + "\r\n";
-        send(clientSocket, topicResponse.c_str(), topicResponse.size(), 0);
+        std::string currentTopic = channel->getTopic();
+        if (currentTopic.empty()) {
+            // Pas de topic défini
+            std::string topicResponse = ":irc.42server.com 331 " + clients[clientSocket]->getNickname() + " " + channelName + " :No topic is set\r\n";
+            send(clientSocket, topicResponse.c_str(), topicResponse.size(), 0);
+        } else {
+            // Retourner le topic actuel
+            std::string topicResponse = ":irc.42server.com 332 " + clients[clientSocket]->getNickname() + " " + channelName + " :" + currentTopic + "\r\n";
+            send(clientSocket, topicResponse.c_str(), topicResponse.size(), 0);
+        }
         return;
     }
+    
+    std::cout << "📌 Demande du topic pour " << channelName << std::endl;
+
+
+    // 🔹 Vérification : Seuls les opérateurs peuvent changer le topic si le mode +t est activé
     if (channel->getTopicRestricted() && !channel->isOperator(clientSocket)) {
-        send(clientSocket, "ERROR :Only operators can set topic\r\n", 38, 0);
+        std::string errorMsg = ":irc.42server.com 482 " + clients[clientSocket]->getNickname() + " " + channelName + " :You're not a channel operator\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
         return;
     }
+
+    // 🔹 Appliquer la modification du topic
     channel->setTopic(topic);
-    std::string topicMessage = ":" + clients[clientSocket]->getNickname() + " TOPIC " + channelName + " :" + topic + "\r\n";
+    std::string topicMessage = ":" + clients[clientSocket]->getNickname() + "!"+ clients[clientSocket]->getUsername() +"@localhost TOPIC " + channelName + " :" + topic + "\r\n";
     channel->broadcast(topicMessage, -1);
 }
+
 
 /**
  * @brief Gère la commande MODE pour changer les paramètres d'un channel.

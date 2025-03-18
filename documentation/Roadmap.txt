@@ -268,13 +268,14 @@ commande PING PONG
 Ajouter une sauvegarde du ban (ban list par channel)
 probleme de commande HexChat en majuscules
 
-exemple des message coté client 
+exemple des message coté client
 
-PASS salut
-NICK nael
+nc 127.0.0.1 6667
+PASS mypassword
+NICK user1
 : NICK nael
-USER user l l :r
-:localhost 001 nael :Welcome to the Internet Relay Network nael!user@localhost
+USER user USER u1 0 * :User One
+:localhost 001 nael :Welcome to the Internet Relay Network user1!u1@localhost
 JOIN #test
 :nael!user@localhost JOIN :#test
 :localhost 332 nael #test :default
