@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
+/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:07:11 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/17 11:42:16 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/19 19:21:09 by kpourcel         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -40,7 +40,7 @@ class CommandHandler;
 
 class Server {
     private:
-        bool                            running;            // Server running info
+       // bool                            running;            // Server running info
         int                             serverSocket;       // Socket du serveur
         int                             port;               // Port d'écoute
         std::string                     password;           // Mot de passe du serveur

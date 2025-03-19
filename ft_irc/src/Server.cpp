@@ -6,7 +6,7 @@
 /*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/18 16:13:39 by kpourcel         ###   ########.fr       */
+/*   Updated: 2025/03/19 19:21:28 by kpourcel         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -273,32 +273,50 @@ void Server::handleClientMessage(int clientSocket) {
     memset(buffer, 0, sizeof(buffer));
     int bytesRead = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
 
-    if (bytesRead <= 0) {
+    // Si une erreur se produit, on déconnecte
+    if (bytesRead < 0) {
+        removeClient(clientSocket);
+        return;
+    }
+    
+    // Si recv retourne 0 (EOF)...
+    if (bytesRead == 0) {
+        Client* client = clients[clientSocket];
+        // Vérifier si le buffer du client contient un fragment partiel
+        if (!client->getBufferRef().empty()) {
+            std::string leftover = client->getBufferRef();
+            std::cout << "Partial command received (without CRLF): [" << leftover << "]\n";
+            // Renvoyer ce fragment au client afin qu'il puisse continuer la saisie.
+            // Ici, nous utilisons NOTICE pour signaler qu'il s'agit d'un fragment partiel.
+            std::string echoMsg = ":irc.42server.com NOTICE * :" + leftover + "\r\n";
+            send(clientSocket, echoMsg.c_str(), echoMsg.size(), 0);
+            // Ne pas vider le buffer pour permettre au client de compléter la commande.
+            return;
+        }
+        // Si le buffer est vide, alors le client a bien fermé la connexion.
         removeClient(clientSocket);
         return;
     }
 
-    std::string message(buffer);
-    message.erase(message.find_last_not_of("\r\n") + 1); // Nettoyage des sauts de ligne
+    // Sinon, bytesRead > 0 : on ajoute les données reçues dans le buffer du client.
+    buffer[bytesRead] = '\0';
+    Client* client = clients[clientSocket];
+    client->appendToBuffer(buffer, bytesRead);
 
-    std::cout << "📩 Message reçu de " << clientSocket << " : " << message << std::endl;
+    std::cout << "📩 Message reçu de " << clientSocket << " : " << buffer << std::endl;
 
-    // Vérifier si le client existe
-    if (clients.find(clientSocket) == clients.end()) {
-        return;
+    // Tenter d'extraire toutes les commandes complètes présentes dans le buffer
+    std::string message;
+    while ((message = client->extractNextMessage()) != "") {
+        // Optionnel : si la commande commence par '/', on la retire.
+        if (!message.empty() && message[0] == '/') {
+            message.erase(0, 1);
+        }
+        std::cout << "🔍 Commande complète extraite : [" << message << "]\n";
+        commandHandler.handleCommand(clientSocket, message);
     }
-
-    // Vérifier si c'est une commande IRC
-    if (message[0] == '/') {
-        message = message.substr(1); // Supprime le "/"
-    }
-
-    // Debug : Afficher la commande analysée
-    std::cout << "🔍 Commande détectée : [" << message << "]\n";
-
-    // ✅ Appeler le gestionnaire de commandes
-    commandHandler.handleCommand(clientSocket, message);
 }
+
 
 /**
  * @brief Gère la commande PRIVMSG pour envoyer un message privé.
@@ -315,6 +333,7 @@ void Server::handlePrivMsg(int clientSocket, const std::string& target, const st
         send(clientSocket, "ERROR :No text to send\r\n", 25, 0);
         return;
     }
+    (void)port;
 
     // 📌 Suppression correcte du ":" en début de message uniquement si présent
     std::string cleanMessage = message;
@@ -880,3 +899,5 @@ int Server::getClientSocketByNickname(const std::string& nickname) const {
 std::map<int, Client*>& Server::getClients() {
     return clients;
 }
+
+

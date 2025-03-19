@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Client.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
+/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:07:20 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/10 16:42:11 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/19 19:19:37 by kpourcel         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,6 +26,7 @@ private:
     std::string realname;       // Nom réel du client
     bool        authenticated;  // Vérifie si le client est authentifié
     std::string currentChannel; // Stocke le channel actuel du client
+    std::string buffer;
 
 public:
     Client(int fd);
@@ -45,6 +46,10 @@ public:
     std::string getCurrentChannel() const;
 
     bool        isFullyRegistered() const;
+
+    std::string& getBufferRef();
+    void appendToBuffer(const char* receiveBuffer, size_t length);
+    std::string extractNextMessage();
 
 };
 
