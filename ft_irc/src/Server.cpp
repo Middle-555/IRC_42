@@ -6,7 +6,7 @@
 /*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/19 19:21:28 by kpourcel         ###   ########.fr       */
+/*   Updated: 2025/03/20 16:44:34 by kpourcel         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -479,13 +479,14 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
         return;
     }
 
+    // Création du channel s'il n'existe pas
     bool isNewChannel = (channels.find(channelName) == channels.end());
     if (isNewChannel) {
         channels[channelName] = new Channel(channelName);
     }
     Channel* channel = channels[channelName];
 
-    // Vérification des permissions
+    // Vérification des permissions : invite only et mot de passe (si applicable)
     if (channel->getInviteOnly() && !channel->isInvited(clientSocket)) {
         std::string errorMsg = ":irc.42server.com 473 " + clients[clientSocket]->getNickname() + " " + channelName + " :Cannot join channel (+i) - Invite only\r\n";
         send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
@@ -496,15 +497,22 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
         send(clientSocket, errorMsg.c_str(), errorMsg.length(), 0);
         return;
     }
-
     if (channel->isInvited(clientSocket)) {
         channel->removeInvitation(clientSocket);
     }
 
+    // Vérification de la limitation : s'il y a une limite (non nulle) et le nombre d'utilisateurs est atteint
+    if (channel->getUserLimit() != 0 && channel->getClients().size() >= static_cast<size_t>(channel->getUserLimit())) {
+        std::string errorMsg = ":irc.42server.com 471 " + clients[clientSocket]->getNickname() + " " + channelName + " :Channel is full\r\n";
+        send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
+        return;
+    }
+
+    // Ajout du client dans le channel
     channel->addClient(clientSocket);
     clients[clientSocket]->setCurrentChannel(channelName);
 
-    // Si c'est un nouveau canal, le premier utilisateur devient opérateur
+    // Si c'est un nouveau channel, le premier utilisateur devient opérateur
     if (isNewChannel) {
         channel->addOperator(clientSocket);
     }
@@ -512,11 +520,11 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
     std::string nick = clients[clientSocket]->getNickname();
     std::string serverName = "irc.42server.com";
 
-    // 1️⃣ Message JOIN (Obligatoire)
+    // 1️⃣ Message JOIN : broadcast dans le channel
     std::string joinMsg = ":" + nick + " JOIN " + channelName + "\r\n";
     channel->broadcast(joinMsg, -1);
 
-    // 2️⃣ Réponse 332 (TOPIC du channel)
+    // 2️⃣ Envoi du topic du channel (332 ou 331)
     std::string topicMsg;
     if (!channel->getTopic().empty()) {
         topicMsg = ":" + serverName + " 332 " + nick + " " + channelName + " :" + channel->getTopic() + "\r\n";
@@ -525,7 +533,7 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
     }
     send(clientSocket, topicMsg.c_str(), topicMsg.size(), 0);
 
-    // 3️⃣ Réponse 353 (Liste des utilisateurs du channel)
+    // 3️⃣ Envoi de la liste des utilisateurs du channel (353)
     std::string userList = ":" + serverName + " 353 " + nick + " = " + channelName + " :";
     const std::set<int>& channelClients = channel->getClients();
     for (std::set<int>::iterator it = channelClients.begin(); it != channelClients.end(); ++it) {
@@ -538,12 +546,13 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
     userList += "\r\n";
     send(clientSocket, userList.c_str(), userList.size(), 0);
 
-    // 4️⃣ Réponse 366 (Fin de la liste des utilisateurs)
+    // 4️⃣ Fin de la liste des utilisateurs (366)
     std::string endOfListMsg = ":" + serverName + " 366 " + nick + " " + channelName + " :End of NAMES list\r\n";
     send(clientSocket, endOfListMsg.c_str(), endOfListMsg.size(), 0);
 
     std::cout << "✅ [" << nick << "] a rejoint le canal " << channelName << std::endl;
 }
+
 
 
 
