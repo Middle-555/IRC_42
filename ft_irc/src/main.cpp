@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 23:10:56 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/11 23:48:16 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/03/20 17:22:44 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,6 +19,12 @@ void signalHandler(int signum) {
         std::cout << "\n🛑 Signal reçu (" << signum << "), arrêt du serveur...\n";
         globalServerPtr->shutdownServer();
     }
+}
+
+bool is_valid_port(const char* str) {
+    char* end;
+    long port = strtol(str, &end, 10);
+    return (*end == '\0' && port >= 1024 && port <= 65535);
 }
 
 int main(int argc, char **argv) {

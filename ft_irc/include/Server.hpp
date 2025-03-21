@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
+/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:07:11 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/19 19:21:09 by kpourcel         ###   ########.fr       */
+/*   Updated: 2025/03/20 17:24:13 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,7 +31,6 @@
 #include "Client.hpp"
 #include "Channel.hpp"
 #include "CommandHandler.hpp"
-#include "Utils.hpp"
 
 #define MAX_CLIENTS 100  // Limite de clients simultanés
 
@@ -40,7 +39,6 @@ class CommandHandler;
 
 class Server {
     private:
-       // bool                            running;            // Server running info
         int                             serverSocket;       // Socket du serveur
         int                             port;               // Port d'écoute
         std::string                     password;           // Mot de passe du serveur

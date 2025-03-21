@@ -10,8 +10,7 @@ SRC =	src/main.cpp\
 		src/Server.cpp\
 		src/Client.cpp\
 		src/CommandHandler.cpp\
-		src/Channel.cpp\
-		src/Utils.cpp
+		src/Channel.cpp
 
 # Dossier pour les fichiers objets
 OBJ_DIR = obj
