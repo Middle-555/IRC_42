@@ -482,8 +482,6 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
     if (channel->isInvited(clientSocket)) {
         channel->removeInvitation(clientSocket);
     }
-
-    // Vérification de la limitation : s'il y a une limite (non nulle) et le nombre d'utilisateurs est atteint
     if (channel->getUserLimit() != 0 && channel->getClients().size() >= static_cast<size_t>(channel->getUserLimit())) {
         std::string errorMsg = ":irc.42server.com 471 " + clients[clientSocket]->getNickname() + " " + channelName + " :Channel is full\r\n";
         send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
@@ -500,13 +498,10 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
     std::string nick = clients[clientSocket]->getNickname();
     std::string serverName = "irc.42server.com";
 
-    // 1️⃣ Message JOIN : broadcast dans le channel
     std::string joinMsg = ":" + nick + " JOIN " + channelName + "\r\n";
 
-    // 🔁 Broadcast à tous (y compris l'émetteur)
     channel->broadcast(joinMsg, -1);
 
-    // 2️⃣ Envoi du topic du channel (332 ou 331)
     std::string topicMsg;
     if (!channel->getTopic().empty()) {
         topicMsg = ":" + serverName + " 332 " + nick + " " + channelName + " :" + channel->getTopic() + "\r\n";
@@ -515,7 +510,6 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
     }
     send(clientSocket, topicMsg.c_str(), topicMsg.size(), 0);
 
-    // 3️⃣ Envoi de la liste des utilisateurs du channel (353)
     std::string userList = ":" + serverName + " 353 " + nick + " = " + channelName + " :";
     const std::set<int>& channelClients = channel->getClients();
     for (std::set<int>::iterator it = channelClients.begin(); it != channelClients.end(); ++it) {
@@ -528,15 +522,11 @@ void Server::handleJoin(int clientSocket, const std::string& channelName, const 
     userList += "\r\n";
     send(clientSocket, userList.c_str(), userList.size(), 0);
 
-    // 4️⃣ Fin de la liste des utilisateurs (366)
     std::string endOfListMsg = ":" + serverName + " 366 " + nick + " " + channelName + " :End of NAMES list\r\n";
     send(clientSocket, endOfListMsg.c_str(), endOfListMsg.size(), 0);
 
     std::cout << "✅ [" << nick << "] a rejoint le canal " << channelName << std::endl;
 }
-
-
-
 
 
 /**
@@ -555,16 +545,13 @@ void Server::handlePart(int clientSocket, const std::string& channelName) {
 
     std::string partMsg = ":" + clients[clientSocket]->getNickname() + " PART " + channelName + "\r\n";
 
-    // ✅ Envoie le message PART au client lui-même
     send(clientSocket, partMsg.c_str(), partMsg.length(), 0);
 
-    // 🔁 Puis broadcast aux autres (pas besoin de -1 ici)
     channel->broadcast(partMsg, clientSocket);
 
     channel->removeClient(clientSocket);
     clients[clientSocket]->setCurrentChannel("");
 
-    // Vérifier si l'utilisateur était un opérateur et réassigner
     if (channel->isOperator(clientSocket)) {
         channel->removeOperator(clientSocket);
         if (!channel->isEmpty()) {
@@ -597,13 +584,10 @@ void Server::handleQuit(int clientSocket, const std::string& quitMessage) {
     std::string currentChannel = client->getCurrentChannel();
     if (!currentChannel.empty() && channels.find(currentChannel) != channels.end()) {
         Channel* channel = channels[currentChannel];
-        // 🔁 Broadcast aux autres
         channel->broadcast(fullQuitMessage, clientSocket);
-        // ✅ Et au client lui-même
         send(clientSocket, fullQuitMessage.c_str(), fullQuitMessage.size(), 0);
         channel->removeClient(clientSocket);
         
-        // Vérifier si un opérateur quitte et réassigner
         if (channel->isOperator(clientSocket)) {
             channel->removeOperator(clientSocket);
             if (!channel->isEmpty()) {
@@ -612,12 +596,8 @@ void Server::handleQuit(int clientSocket, const std::string& quitMessage) {
             }
         }
     }
-
-    // 🔹 Fermer la connexion
     send(clientSocket, fullQuitMessage.c_str(), fullQuitMessage.size(), 0);
     close(clientSocket);
-
-    // 🔹 Supprimer le client de la liste
     delete clients[clientSocket];
     clients.erase(clientSocket);
 
