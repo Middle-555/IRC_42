@@ -6,7 +6,7 @@
 /*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/04/01 15:33:00 by kpourcel         ###   ########.fr       */
+/*   Updated: 2025/04/01 16:08:55 by kpourcel         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -343,24 +343,31 @@ void Server::handlePrivMsg(int clientSocket, const std::string& target, const st
     std::string fullMessage = ":" + clients[clientSocket]->getNickname() +
                               " PRIVMSG " + target + " :" + cleanMessage + "\r\n";
 
-    // Si le message est destiné à un channel
-    if (channels.find(target) != channels.end()) {
-        Channel* channel = channels[target];
+    // CAS 1 : Le message est destiné à un channel (#channel)
+    if (!target.empty() && target[0] == '#') {
+        if (channels.find(target) == channels.end()) {
+            // Channel inexistant
+            std::string errorMsg = ":irc.42server.com 403 " + clients[clientSocket]->getNickname() +
+                                   " " + target + " :No such channel\r\n";
+            send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
+            return;
+        }
 
-        // ✅ Vérifie que le client est bien dans le canal
+        Channel* channel = channels[target];
         if (!channel->isClientInChannel(clientSocket)) {
-            std::string errorMsg = ":irc.42server.com 442 " + clients[clientSocket]->getNickname() + 
+            // Client pas dans le channel
+            std::string errorMsg = ":irc.42server.com 442 " + clients[clientSocket]->getNickname() +
                                    " " + target + " :You're not on that channel\r\n";
             send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
             return;
         }
 
-        // 🔁 Diffuse le message aux autres membres du canal
+        // ✅ Diffusion du message aux autres clients du channel
         channel->broadcast(fullMessage, clientSocket);
         return;
     }
 
-    // Si le message est destiné à un utilisateur
+    // CAS 2 : Le message est destiné à un utilisateur précis
     bool userFound = false;
     for (std::map<int, Client*>::iterator it = clients.begin(); it != clients.end(); ++it) {
         if (it->second->getNickname() == target) {
@@ -369,10 +376,9 @@ void Server::handlePrivMsg(int clientSocket, const std::string& target, const st
             break;
         }
     }
-
-    // Si aucun utilisateur ou channel trouvé
     if (!userFound) {
-        std::string errorMsg = ":irc.42server.com 401 " + clients[clientSocket]->getNickname() + 
+        // Aucune cible trouvée (ni channel, ni utilisateur)
+        std::string errorMsg = ":irc.42server.com 401 " + clients[clientSocket]->getNickname() +
                                " " + target + " :No such nick/channel\r\n";
         send(clientSocket, errorMsg.c_str(), errorMsg.size(), 0);
     }
