@@ -58,6 +58,7 @@ class Server {
         std::string     serverName;
     
         /*                                Constructeur / Destructeur                  */
+        Server();
         Server(int port, std::string password);
         ~Server();
         

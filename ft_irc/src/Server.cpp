@@ -12,7 +12,6 @@
 
 #include "../include/Server.hpp"
 
-
 /* -------------------------------------------------------------------------- */
 /*                                Constructeur / Destructeur                  */
 /* -------------------------------------------------------------------------- */
@@ -28,6 +27,7 @@
  *
  * @throws EXIT_FAILURE en cas d'erreur lors de la création du socket, du bind ou du listen.
  */
+
 Server::Server(int port, std::string password)
     : port(port), password(password), commandHandler(*this) {
     struct sockaddr_in serverAddr;
