@@ -1,47 +1,60 @@
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    Makefile                                           :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2025/04/01 17:07:53 by kpourcel          #+#    #+#              #
+#    Updated: 2025/04/01 17:10:39 by kpourcel         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 # Nom de l'exécutable
-NAME = irc
+NAME = ircserv
 
 # Compilateur et options
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 
-# Fichiers sources
+# Sources et Objets
 SRC =	src/main.cpp\
 		src/Server.cpp\
 		src/Client.cpp\
 		src/CommandHandler.cpp\
 		src/Channel.cpp
 
-# Dossier pour les fichiers objets
 OBJ_DIR = obj
 OBJ = $(SRC:%.cpp=$(OBJ_DIR)/%.o)
 
-# Règle par défaut : compilation
+# Default rule
 all: $(NAME)
-	@echo "✅ Compilation terminée avec succès pour $(NAME)"
 
-# Création de l'exécutable
+# Linking
 $(NAME): $(OBJ)
 	@$(CXX) $(CXXFLAGS) -o $(NAME) $(OBJ)
-	
+	@echo "✅ Compilation terminée avec succès pour $(NAME)"
 
-# Règle pour compiler les fichiers objets
-$(OBJ_DIR)/%.o: %.cpp
-	@mkdir -p $(dir $@)  # Crée tous les sous-dossiers nécessaires
+# Create obj dir once
+$(OBJ_DIR):
+	@mkdir -p $(OBJ_DIR)
+
+# Compile object files
+$(OBJ_DIR)/%.o: %.cpp | $(OBJ_DIR)
+	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Règle pour nettoyer les fichiers objets
+# Clean objects
 clean:
 	@rm -rf $(OBJ_DIR)
 	@echo "🧹 Fichiers objets supprimés"
 
-# Règle pour nettoyer tout (y compris l'exécutable)
+# Full clean
 fclean: clean
 	@rm -f $(NAME)
 	@echo "🧼 Nettoyage complet effectué"
 
-# Règle pour recompiler entièrement
+# Rebuild everything
 re: fclean all
 
-# Évite que make considère ces règles comme des fichiers
 .PHONY: all clean fclean re
