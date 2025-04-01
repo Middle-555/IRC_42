@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Client.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
+/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:07:20 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/19 19:19:37 by kpourcel         ###   ########.fr       */
+/*   Updated: 2025/04/01 17:30:01 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,14 +19,14 @@
 
 class Client {
 private:
-    int         socketFd;       // Socket du client
-    std::string nickname;       // Pseudo du client
-    std::string username;       // Nom d'utilisateur
-    std::string hostname;       // Nom d'hôte (adresse IP)
-    std::string realname;       // Nom réel du client
-    bool        authenticated;  // Vérifie si le client est authentifié
-    std::string currentChannel; // Stocke le channel actuel du client
-    std::string buffer;
+    int             socketFd;
+    std::string     nickname;
+    std::string     username;
+    std::string     hostname;
+    std::string     realname;
+    bool            authenticated;
+    std::string     currentChannel;
+    std::string     buffer;
 
 public:
     Client(int fd);

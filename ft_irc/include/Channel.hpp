@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Channel.hpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
+/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/10 15:50:02 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/18 16:46:03 by kpourcel         ###   ########.fr       */
+/*   Updated: 2025/04/01 17:27:10 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -39,12 +39,16 @@ public:
     bool isEmpty() const;
     const std::set<int>& getClients() const;
 
-    // Gestion des opérateurs
+    /**
+     * Gestion des opérateurs
+     */
     void addOperator(int clientSocket);
     void removeOperator(int clientSocket);
     bool isOperator(int clientSocket) const;
 
-    // Gestion des modes
+    /**
+     * Gestion des modes
+     */
     void setInviteOnly(bool state);
     bool getInviteOnly() const;
 

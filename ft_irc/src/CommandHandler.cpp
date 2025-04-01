@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   CommandHandler.cpp                                 :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
+/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 23:11:20 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/18 16:15:48 by kpourcel         ###   ########.fr       */
+/*   Updated: 2025/04/01 17:20:42 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,16 +30,14 @@ void CommandHandler::handleCommand(int clientSocket, const std::string &command)
     std::istringstream iss(command);
     std::string cmd;
 
-    // ✂️ Découper les commandes envoyées en un seul bloc
     std::vector<std::string> commands;
     std::string temp;
-    while (std::getline(iss, temp, '\n')) {  // Sépare chaque commande par '\n'
+    while (std::getline(iss, temp, '\n')) {
         if (!temp.empty()) {
             commands.push_back(temp);
         }
     }
 
-    // 🔄 Parcourir et exécuter chaque commande individuellement
     for (size_t i = 0; i < commands.size(); i++) {
         std::istringstream singleCommand(commands[i]);
         singleCommand >> cmd;
@@ -47,7 +45,6 @@ void CommandHandler::handleCommand(int clientSocket, const std::string &command)
         std::cout << "📌 CommandHandler : [" << cmd << "] reçue du client " << clientSocket << std::endl;
 
         if (cmd == "CAP") {
-            // Ignorer CAP LS envoyé par HexChat
             continue;
         }
 
@@ -115,7 +112,6 @@ void CommandHandler::handleUserCmd(int clientSocket, std::istringstream &iss) {
     iss >> username >> mode >> unused;
     std::getline(iss, realname);
 
-    // Nettoyage
     realname.erase(0, realname.find_first_not_of(" \t"));
     if (!realname.empty() && realname[0] == ':') {
         realname.erase(0, 1);
@@ -180,10 +176,8 @@ void CommandHandler::handleTopicCmd(int clientSocket, std::istringstream &iss) {
     iss >> channel;
     std::getline(iss, topic);
 
-    // Supprimer les espaces en début de chaîne
     topic.erase(0, topic.find_first_not_of(" \t"));
 
-    // Supprimer le ':' ajouté par HexChat au début du topic
     if (!topic.empty() && topic[0] == ':') {
         topic.erase(0, 1);
     }
@@ -207,7 +201,6 @@ void CommandHandler::handlePingCmd(int clientSocket, std::istringstream &iss) {
     std::string token;
     iss >> token;
     
-    // If token is empty, use '*' as default
     if (token.empty()) {
         token = "*";
     }

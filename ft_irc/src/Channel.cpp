@@ -6,7 +6,7 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/10 15:49:43 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/17 11:56:16 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/04/01 17:16:13 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -45,7 +45,9 @@ const std::set<int>& Channel::getClients() const {
     return clients;
 }
 
-// Gestion des opérateurs
+/**
+ * Gestion des opérateurs
+ */
 void Channel::addOperator(int clientSocket) {
     operators.insert(clientSocket);
 }
@@ -58,7 +60,10 @@ bool Channel::isOperator(int clientSocket) const {
     return operators.find(clientSocket) != operators.end();
 }
 
-// Gestion des modes
+/**
+ * Gestion des modes
+ * Gueteurs et Seteurs
+ */
 void Channel::setInviteOnly(bool state) {
     inviteOnly = state;
 }

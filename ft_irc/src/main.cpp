@@ -6,13 +6,13 @@
 /*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 23:10:56 by acabarba          #+#    #+#             */
-/*   Updated: 2025/03/20 17:22:44 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/04/01 17:20:56 by acabarba         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../include/Server.hpp"
 
-Server* globalServerPtr = NULL;  // Pointeur global vers le serveur
+Server* globalServerPtr = NULL;
 
 void signalHandler(int signum) {
     if (globalServerPtr) {
@@ -38,9 +38,8 @@ int main(int argc, char **argv) {
 
     try {
         Server server(port, password);
-        globalServerPtr = &server;  // Associer le serveur au pointeur global
+        globalServerPtr = &server;
 
-        // ✅ Utilisation de `sigaction` pour capturer `CTRL + C`
         struct sigaction sigIntHandler;
         sigIntHandler.sa_handler = signalHandler;
         sigemptyset(&sigIntHandler.sa_mask);
