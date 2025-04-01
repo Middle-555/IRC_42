@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
+/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:24:18 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/21 15:15:12 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/04/01 15:33:00 by kpourcel         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -394,7 +394,12 @@ void Server::handlePrivMsg(int clientSocket, const std::string& target, const st
  * @param clientSocket Le descripteur de fichier du client.
  * @param password Le mot de passe fourni par le client.
  */
-void Server::handlePass(int clientSocket, const std::string& password) {
+void Server::handlePass(int clientSocket, std::string& password) 
+{
+    if (!password.empty() && password[0] == ':') 
+    {
+        password.erase(0, 1);
+    }
     if (clients.find(clientSocket) == clients.end()) {
         return;
     }

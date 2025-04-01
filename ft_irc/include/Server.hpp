@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: acabarba <acabarba@42.fr>                  +#+  +:+       +#+        */
+/*   By: kpourcel <marvin@42.fr>                    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/06 15:07:11 by kpourcel          #+#    #+#             */
-/*   Updated: 2025/03/20 17:24:13 by acabarba         ###   ########.fr       */
+/*   Updated: 2025/04/01 15:34:47 by kpourcel         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -70,7 +70,7 @@ class Server {
         void    handlePrivMsg(int clientSocket, const std::string& target, const std::string& message);
     
         /*                                Gestion des Commandes IRC                   */
-        void    handlePass(int clientSocket, const std::string& password);
+        void    handlePass(int clientSocket, std::string& password);
         void    handleNick(int clientSocket, const std::string& nickname);
         void    handleUser(int clientSocket, const std::string& username, const std::string& realname);
         void    handleJoin(int clientSocket, const std::string& channelName, const std::string& password);
